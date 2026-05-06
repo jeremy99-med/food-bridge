@@ -1,0 +1,41 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: 🌿
+        - generic [ref=e9]: FoodBridge
+      - button "Sign in" [ref=e10]
+  - main [ref=e36]:
+    - generic [ref=e94]:
+      - generic [ref=e154]:
+        - heading "Create account" [level=1] [ref=e155]
+        - paragraph [ref=e156]: Save meal plans and grocery lists across sessions.
+      - main [ref=e157]:
+        - generic [ref=e161]:
+          - generic [ref=e162]: Username
+          - textbox "yourname" [ref=e163]: testuser
+        - generic [ref=e164]:
+          - generic [ref=e165]: Email
+          - textbox "you@example.com" [ref=e166]: test@example.com
+        - generic [ref=e167]:
+          - generic [ref=e168]: Password
+          - textbox "••••••••" [ref=e169]: TestPass1!
+          - list [ref=e170]:
+            - listitem [ref=e171]:
+              - generic [ref=e172]: ✓
+              - text: At least 8 characters
+            - listitem [ref=e173]:
+              - generic [ref=e174]: ✓
+              - text: An uppercase letter
+            - listitem [ref=e175]:
+              - generic [ref=e176]: ✓
+              - text: A number
+            - listitem [ref=e177]:
+              - generic [ref=e178]: ✓
+              - text: A special character
+        - paragraph [ref=e179]:
+          - text: Already have an account?
+          - button "Sign in" [ref=e180]
+      - generic [ref=e182]:
+        - button "Back" [ref=e183] [cursor=pointer]
+        - button "Create account" [ref=e184] [cursor=pointer]

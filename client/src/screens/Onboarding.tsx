@@ -38,6 +38,21 @@ const MEDICATION_CATEGORIES: Record<string, string[]> = {
 
 const STEPS = 6;
 
+// Unit conversion helpers (imperial ↔ metric)
+function ftInToCm(ft: string, inches: string): string {
+  return ((parseFloat(ft) * 12 + parseFloat(inches)) * 2.54).toFixed(1);
+}
+function lbsToKg(lbs: string): string {
+  return (parseFloat(lbs) * 0.453592).toFixed(1);
+}
+function cmToFtIn(cm: string): { ft: string; inches: string } {
+  const totalIn = parseFloat(cm) / 2.54;
+  return { ft: String(Math.floor(totalIn / 12)), inches: String(Math.round(totalIn % 12)) };
+}
+function kgToLbs(kg: string): string {
+  return (parseFloat(kg) / 0.453592).toFixed(1);
+}
+
 // Validation helpers
 const isValidFloat = (v: string) => /^\d+(\.\d+)?$/.test(v.trim()) && parseFloat(v) > 0;
 const isValidAge = (v: string) => /^\d+$/.test(v.trim()) && parseInt(v) >= 1 && parseInt(v) <= 120;
@@ -49,6 +64,10 @@ const Onboarding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [unitSystem, setUnitSystem] = useState<'imperial' | 'metric'>('imperial');
+  const [heightFt, setHeightFt] = useState(() => profile.height ? cmToFtIn(profile.height).ft : '');
+  const [heightIn, setHeightIn] = useState(() => profile.height ? cmToFtIn(profile.height).inches : '');
+  const [weightLbs, setWeightLbs] = useState(() => profile.weight ? kgToLbs(profile.weight) : '');
 
   const next = () => {
     const errs = validateStep(step);
@@ -62,14 +81,26 @@ const Onboarding = () => {
     const errs: Record<string, string> = {};
     if (s === 1) {
       if (!profile.height) errs.height = "Required";
-      else if (!isValidHeight(profile.height)) errs.height = "Enter a valid height (50–300 cm)";
+      else if (!isValidHeight(profile.height)) errs.height = "Enter a valid height";
       if (!profile.weight) errs.weight = "Required";
-      else if (!isValidWeight(profile.weight)) errs.weight = "Enter a valid weight (10–500 kg)";
+      else if (!isValidWeight(profile.weight)) errs.weight = "Enter a valid weight";
       if (!profile.age) errs.age = "Required";
       else if (!isValidAge(profile.age)) errs.age = "Enter a valid age (1–120)";
       if (!profile.sex) errs.sex = "Please select a sex";
     }
     return errs;
+  };
+
+  const handleUnitToggle = (system: 'imperial' | 'metric') => {
+    if (system === 'imperial') {
+      if (profile.height) {
+        const { ft, inches } = cmToFtIn(profile.height);
+        setHeightFt(ft);
+        setHeightIn(inches);
+      }
+      if (profile.weight) setWeightLbs(kgToLbs(profile.weight));
+    }
+    setUnitSystem(system);
   };
 
   const handleGoalChange = (selected: string[]) => {
@@ -156,36 +187,129 @@ const Onboarding = () => {
           <section className="space-y-6">
             <h1 className="text-3xl font-bold">📏 About you</h1>
             <p className="text-sm text-muted-foreground -mt-4">Basic measurements help us personalize your nutrition.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Height (cm)" error={fieldErrors.height}>
-                <input className={`fb-input ${fieldErrors.height ? "border-red-500" : ""}`}
-                  type="number" inputMode="numeric" placeholder="175"
-                  min={50} max={300}
-                  value={profile.height} onChange={(e) => setProfile({ height: e.target.value })} />
-              </Field>
-              <Field label="Weight (kg)" error={fieldErrors.weight}>
-                <input className={`fb-input ${fieldErrors.weight ? "border-red-500" : ""}`}
-                  type="number" inputMode="numeric" placeholder="70"
-                  min={10} max={500}
-                  value={profile.weight} onChange={(e) => setProfile({ weight: e.target.value })} />
-              </Field>
-              <Field label="Age" error={fieldErrors.age}>
-                <input className={`fb-input ${fieldErrors.age ? "border-red-500" : ""}`}
-                  type="number" inputMode="numeric" placeholder="30"
-                  min={1} max={120}
-                  value={profile.age} onChange={(e) => setProfile({ age: e.target.value })} />
-              </Field>
-              <Field label="Sex" error={fieldErrors.sex}>
-                <div className="grid grid-cols-2 border-2 border-foreground h-12 rounded-lg overflow-hidden">
-                  {(["Male", "Female"] as Sex[]).map((s) => (
-                    <button key={s} type="button" onClick={() => setProfile({ sex: s })}
-                      className={`text-sm font-medium transition-colors ${profile.sex === s ? "bg-foreground text-white" : "bg-white text-foreground"}`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </Field>
+
+            {/* Unit system toggle */}
+            <div className="grid grid-cols-2 border-2 border-foreground h-10 rounded-lg overflow-hidden">
+              {(['Imperial', 'Metric'] as const).map((u) => (
+                <button key={u} type="button"
+                  onClick={() => handleUnitToggle(u.toLowerCase() as 'imperial' | 'metric')}
+                  className={`text-sm font-medium transition-colors ${unitSystem === u.toLowerCase() ? "bg-foreground text-white" : "bg-white text-foreground"}`}>
+                  {u}
+                </button>
+              ))}
             </div>
+
+            {unitSystem === 'imperial' ? (
+              <div className="grid grid-cols-2 gap-3">
+                {/* Imperial height — ft + in inputs spanning full width */}
+                <div className="col-span-2">
+                  <label className="block space-y-2">
+                    <span className="fb-section-title block">Height</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="relative">
+                        <input
+                          className={`fb-input pr-10 ${fieldErrors.height ? "border-red-500" : ""}`}
+                          type="number" inputMode="numeric" placeholder="5"
+                          min={1} max={8}
+                          value={heightFt}
+                          onChange={(e) => {
+                            const ft = e.target.value;
+                            setHeightFt(ft);
+                            setProfile({ height: ft && heightIn !== '' ? ftInToCm(ft, heightIn) : '' });
+                          }} />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">ft</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          className={`fb-input pr-10 ${fieldErrors.height ? "border-red-500" : ""}`}
+                          type="number" inputMode="numeric" placeholder="10"
+                          min={0} max={11}
+                          value={heightIn}
+                          onChange={(e) => {
+                            const inches = e.target.value;
+                            setHeightIn(inches);
+                            setProfile({ height: heightFt && inches !== '' ? ftInToCm(heightFt, inches) : '' });
+                          }} />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">in</span>
+                      </div>
+                    </div>
+                    {fieldErrors.height && <p className="text-xs text-red-500 mt-1">⚠ {fieldErrors.height}</p>}
+                  </label>
+                </div>
+
+                {/* Imperial weight */}
+                <Field label="Weight" error={fieldErrors.weight}>
+                  <div className="relative">
+                    <input
+                      className={`fb-input pr-12 ${fieldErrors.weight ? "border-red-500" : ""}`}
+                      type="number" inputMode="numeric" placeholder="150"
+                      min={22} max={1100}
+                      value={weightLbs}
+                      onChange={(e) => {
+                        const lbs = e.target.value;
+                        setWeightLbs(lbs);
+                        setProfile({ weight: lbs ? lbsToKg(lbs) : '' });
+                      }} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">lbs</span>
+                  </div>
+                </Field>
+
+                <Field label="Age" error={fieldErrors.age}>
+                  <input className={`fb-input ${fieldErrors.age ? "border-red-500" : ""}`}
+                    type="number" inputMode="numeric" placeholder="30"
+                    min={1} max={120}
+                    value={profile.age} onChange={(e) => setProfile({ age: e.target.value })} />
+                </Field>
+
+                <Field label="Sex" error={fieldErrors.sex} className="col-span-2">
+                  <div className="grid grid-cols-2 border-2 border-foreground h-12 rounded-lg overflow-hidden">
+                    {(["Male", "Female"] as Sex[]).map((s) => (
+                      <button key={s} type="button" onClick={() => setProfile({ sex: s })}
+                        className={`text-sm font-medium transition-colors ${profile.sex === s ? "bg-foreground text-white" : "bg-white text-foreground"}`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Height (cm)" error={fieldErrors.height} className="col-span-2">
+                  <div className="relative">
+                    <input className={`fb-input pr-10 ${fieldErrors.height ? "border-red-500" : ""}`}
+                      type="number" inputMode="numeric" placeholder="175"
+                      min={50} max={300}
+                      value={profile.height} onChange={(e) => setProfile({ height: e.target.value })} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">cm</span>
+                  </div>
+                </Field>
+                <Field label="Weight (kg)" error={fieldErrors.weight}>
+                  <div className="relative">
+                    <input className={`fb-input pr-10 ${fieldErrors.weight ? "border-red-500" : ""}`}
+                      type="number" inputMode="numeric" placeholder="70"
+                      min={10} max={500}
+                      value={profile.weight} onChange={(e) => setProfile({ weight: e.target.value })} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">kg</span>
+                  </div>
+                </Field>
+                <Field label="Age" error={fieldErrors.age}>
+                  <input className={`fb-input ${fieldErrors.age ? "border-red-500" : ""}`}
+                    type="number" inputMode="numeric" placeholder="30"
+                    min={1} max={120}
+                    value={profile.age} onChange={(e) => setProfile({ age: e.target.value })} />
+                </Field>
+                <Field label="Sex" error={fieldErrors.sex} className="col-span-2">
+                  <div className="grid grid-cols-2 border-2 border-foreground h-12 rounded-lg overflow-hidden">
+                    {(["Male", "Female"] as Sex[]).map((s) => (
+                      <button key={s} type="button" onClick={() => setProfile({ sex: s })}
+                        className={`text-sm font-medium transition-colors ${profile.sex === s ? "bg-foreground text-white" : "bg-white text-foreground"}`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+            )}
           </section>
         )}
 
@@ -292,8 +416,8 @@ const Onboarding = () => {
   );
 };
 
-const Field = ({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) => (
-  <label className="block space-y-2">
+const Field = ({ label, error, className, children }: { label: string; error?: string; className?: string; children: React.ReactNode }) => (
+  <label className={`block space-y-2 ${className ?? ''}`}>
     <span className="fb-section-title block">{label}</span>
     {children}
     {error && <p className="text-xs text-red-500 mt-1">⚠ {error}</p>}

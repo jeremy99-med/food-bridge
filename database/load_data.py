@@ -406,13 +406,53 @@ CREATE TABLE IF NOT EXISTS user_calculated_dv (
     zinc_mg         NUMERIC,
     calculated_at   TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Auth tables (user identity, separate from health profile)
+CREATE TABLE IF NOT EXISTS auth_user (
+    user_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username      TEXT NOT NULL UNIQUE,
+    email         TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE user_profile
+    ADD COLUMN IF NOT EXISTS auth_user_id UUID REFERENCES auth_user(user_id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_profile_auth_user ON user_profile(auth_user_id);
+
+CREATE TABLE IF NOT EXISTS saved_grocery_list (
+    list_id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                  UUID NOT NULL REFERENCES auth_user(user_id) ON DELETE CASCADE,
+    total_estimated_cost_usd NUMERIC(10,2),
+    saved_at                 TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_grocery_list_user ON saved_grocery_list(user_id);
+
+CREATE TABLE IF NOT EXISTS saved_grocery_list_item (
+    item_id                  SERIAL PRIMARY KEY,
+    list_id                  UUID NOT NULL REFERENCES saved_grocery_list(list_id) ON DELETE CASCADE,
+    category                 TEXT,
+    name                     TEXT NOT NULL,
+    fdc_id                   INTEGER,
+    quantity_needed          INTEGER,
+    serving_size_g           NUMERIC,
+    estimated_unit_price_usd NUMERIC(10,4),
+    price_source             TEXT,
+    image_url                TEXT
+);
 """
 
 DROP_ORDER = [
-    # user tables first (have FKs)
+    # auth + grocery persistence tables first (FK deps)
+    "saved_grocery_list_item", "saved_grocery_list",
+    # user tables (user_profile has FK to auth_user, so drop before auth_user)
     "user_calculated_dv", "user_cuisine_preference", "user_allergy",
     "user_dietary_preference", "user_grocery_preference", "user_medication",
     "user_health_condition", "user_health_goal", "user_profile",
+    "auth_user",
     # USDA tables (no enforced FKs so order doesn't matter here)
     "microbe", "sub_sample_result", "lab_method_nutrient", "lab_method_code",
     "agricultural_samples", "market_acquisition", "acquisition_samples",

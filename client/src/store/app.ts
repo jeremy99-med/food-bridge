@@ -36,7 +36,13 @@ export interface FoodItem {
   top_nutrients?: string[];
 }
 
-export type Screen = 1 | 2 | 3 | 4 | 5;
+// 1-5 = main flow; 6 = Login; 7 = Signup; 8 = SavedLists
+export type Screen = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+export interface AuthUser {
+  user_id: string;
+  username: string;
+}
 
 interface AppState {
   screen: Screen;
@@ -61,7 +67,18 @@ interface AppState {
   groceryResponse: string;
   setResponse: (key: "mealPlan" | "grocery", text: string) => void;
 
+  authToken: string | null;
+  refreshToken: string | null;
+  authUser: AuthUser | null;
+  setAuth: (token: string, refreshToken: string, user: AuthUser) => void;
+  setAccessToken: (token: string, refreshToken: string) => void;
+  clearAuth: () => void;
+
+  returnScreen: Screen | null;
+  setReturnScreen: (s: Screen | null) => void;
+
   reset: () => void;
+  logout: () => void;
 }
 
 const emptyProfile: Profile = {
@@ -102,6 +119,16 @@ export const useApp = create<AppState>()(
         return { [map[key]]: text } as Partial<AppState>;
       }),
 
+      authToken: null,
+      refreshToken: null,
+      authUser: null,
+      setAuth: (token, refresh, user) => set({ authToken: token, refreshToken: refresh, authUser: user }),
+      setAccessToken: (token, refresh) => set({ authToken: token, refreshToken: refresh }),
+      clearAuth: () => set({ authToken: null, refreshToken: null, authUser: null }),
+
+      returnScreen: null,
+      setReturnScreen: (s) => set({ returnScreen: s }),
+
       reset: () => set({
         screen: 1,
         onboardingStep: 1,
@@ -111,6 +138,21 @@ export const useApp = create<AppState>()(
         selectedFoods: [],
         mealPlanResponse: "",
         groceryResponse: "",
+        // intentionally does NOT clear auth — stay logged in on "Start Over"
+      }),
+
+      logout: () => set({
+        screen: 1,
+        onboardingStep: 1,
+        profileId: "",
+        profile: emptyProfile,
+        preferences: emptyPrefs,
+        selectedFoods: [],
+        mealPlanResponse: "",
+        groceryResponse: "",
+        authToken: null,
+        refreshToken: null,
+        authUser: null,
       }),
     }),
     {
@@ -121,6 +163,9 @@ export const useApp = create<AppState>()(
         profileId: s.profileId,
         profile: s.profile,
         preferences: s.preferences,
+        authToken: s.authToken,
+        refreshToken: s.refreshToken,
+        authUser: s.authUser,
       }),
     },
   ),

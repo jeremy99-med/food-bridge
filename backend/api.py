@@ -5,14 +5,18 @@ Steps 1 & 2 hit the DB directly.
 Steps 3-5 will be handled by a LangChain agent (coming soon).
 """
 
+import asyncio
 import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import auth
+import auth_db
 import user
 import planner
+from dependencies import get_current_user
 
 app = FastAPI(title="FoodBridge API", version="0.1.0")
 
@@ -207,6 +211,157 @@ class ResetRequest(BaseModel):
 @app.post("/reset")
 def reset(req: ResetRequest):
     return {"session_id": req.session_id, "status": "cleared"}
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class SignupRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+    profile_id: str | None = None
+
+
+class LoginRequest(BaseModel):
+    identifier: str
+    password: str
+
+
+class AuthUserResponse(BaseModel):
+    user_id: str
+    username: str
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: AuthUserResponse
+
+
+@app.post("/auth/signup", response_model=AuthResponse)
+async def signup(req: SignupRequest):
+    try:
+        auth.validate_password_rules(req.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    password_hash = await asyncio.get_event_loop().run_in_executor(
+        None, auth.hash_password, req.password
+    )
+
+    try:
+        user_id = auth_db.create_auth_user(req.username, req.email, password_hash)
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "username" in msg:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+        if "email" in msg:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+    if req.profile_id:
+        try:
+            auth_db.link_profile_to_user(req.profile_id, user_id)
+        except Exception:
+            pass  # non-fatal — profile link is best-effort
+
+    access_token = auth.create_access_token(user_id)
+    refresh_token = auth.create_refresh_token(user_id)
+    return AuthResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=AuthUserResponse(user_id=user_id, username=req.username),
+    )
+
+
+@app.post("/auth/login", response_model=AuthResponse)
+async def login(req: LoginRequest):
+    row = auth_db.get_auth_user_by_identifier(req.identifier)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    match = await asyncio.get_event_loop().run_in_executor(
+        None, auth.verify_password, req.password, row["password_hash"]
+    )
+    if not match:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    user_id = str(row["user_id"])
+    access_token = auth.create_access_token(user_id)
+    refresh_token = auth.create_refresh_token(user_id)
+    return AuthResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=AuthUserResponse(user_id=user_id, username=row["username"]),
+    )
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@app.post("/auth/refresh")
+def refresh_token(req: RefreshRequest):
+    user_id = auth.decode_refresh_token(req.refresh_token)
+    user = auth_db.get_auth_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    new_access = auth.create_access_token(user_id)
+    new_refresh = auth.create_refresh_token(user_id)
+    return {
+        "access_token": new_access,
+        "refresh_token": new_refresh,
+        "token_type": "bearer",
+    }
+
+
+@app.get("/auth/me")
+def me(current_user: dict = Depends(get_current_user)):
+    return {
+        "user_id": str(current_user["user_id"]),
+        "username": current_user["username"],
+        "created_at": current_user["created_at"].isoformat() if current_user.get("created_at") else None,
+    }
+
+
+# ── Grocery list persistence ──────────────────────────────────────────────────
+
+class SaveGroceryListRequest(BaseModel):
+    total_estimated_cost_usd: float
+    grocery_list: dict
+
+
+@app.post("/grocery-list/save")
+def save_grocery_list(
+    req: SaveGroceryListRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        list_id = auth_db.save_grocery_list(
+            user_id=str(current_user["user_id"]),
+            total=req.total_estimated_cost_usd,
+            items_by_category=req.grocery_list,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    return {"list_id": list_id}
+
+
+@app.get("/grocery-list/history")
+def grocery_list_history(current_user: dict = Depends(get_current_user)):
+    try:
+        return auth_db.get_grocery_list_history(str(current_user["user_id"]))
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+
+@app.get("/grocery-list/history/{list_id}")
+def grocery_list_detail(list_id: str, current_user: dict = Depends(get_current_user)):
+    detail = auth_db.get_grocery_list_detail(list_id, str(current_user["user_id"]))
+    if not detail:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="List not found")
+    return detail
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

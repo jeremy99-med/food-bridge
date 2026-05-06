@@ -26,18 +26,26 @@ _llm = ChatAnthropic(
     temperature=0,
 )
 
-_db = SQLDatabase.from_uri(
-    _DB_URI,
-    include_tables=[
-        "food", "food_category", "food_nutrient", "nutrient", "branded_food",
-        "user_profile", "user_calculated_dv",
-        "user_grocery_preference", "user_dietary_preference", "user_allergy",
-        "user_medication", "user_health_condition",
-    ],
-    sample_rows_in_table_info=2,
-)
+_db = None
+_tools = None
+_meal_plan_agent = None
 
-_tools = SQLDatabaseToolkit(db=_db, llm=_llm).get_tools()
+def _ensure_initialized():
+    global _db, _tools, _meal_plan_agent
+    if _db is not None:
+        return
+    _db = SQLDatabase.from_uri(
+        _DB_URI,
+        include_tables=[
+            "food", "food_category", "food_nutrient", "nutrient", "branded_food",
+            "user_profile", "user_calculated_dv",
+            "user_grocery_preference", "user_dietary_preference", "user_allergy",
+            "user_medication", "user_health_condition",
+        ],
+        sample_rows_in_table_info=2,
+    )
+    _tools = SQLDatabaseToolkit(db=_db, llm=_llm).get_tools()
+    _meal_plan_agent = create_react_agent(_llm, _tools, prompt=_MEAL_PLAN_PROMPT)
 
 _MEAL_PLAN_PROMPT = SystemMessage(content="""You are FoodBridge, a nutrition and meal planning assistant.
 You have read-only access to a USDA FoodData Central database via SQL tools.
@@ -97,10 +105,9 @@ Return ONLY this exact JSON shape:
   "suggested_swaps": [{"original": "Candy Bar", "replacement": "Mixed Berries", "reason": "Substituted — user takes insulin; high-sugar foods replaced with low-GI alternatives"}]
 }""")
 
-_meal_plan_agent = create_react_agent(_llm, _tools, prompt=_MEAL_PLAN_PROMPT)
-
 
 def generate_meal_plan(profile_id: str, selected_foods: list[dict]) -> str:
+    _ensure_initialized()
     foods_str = ", ".join(
         f"{f['name']} (fdc_id: {f['fdc_id']})" for f in selected_foods
     )

@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { useApp } from "@/store/app";
-import { resetSession } from "@/lib/api";
+import { resetSession, saveGroceryList } from "@/lib/api";
+import { categoryIcon } from "@/lib/categories";
 import Spinner from "@/components/Spinner";
+import ErrorAlert from "@/components/ErrorAlert";
 
 interface GroceryItem {
   name: string;
@@ -48,7 +50,6 @@ function parseGrocery(text: string): ParsedGrocery {
       const totalRaw = obj.total_estimated_cost_usd ?? obj.total ?? obj.estimated_total ?? obj.total_cost;
       result.total = typeof totalRaw === "number" ? totalRaw : Number(String(totalRaw ?? "").replace(/[^\d.]/g, "")) || 0;
 
-      // Case 1: grocery_list is an object keyed by category
       const groceryList = obj.grocery_list ?? obj.items ?? obj.list;
       if (groceryList && typeof groceryList === "object" && !Array.isArray(groceryList)) {
         for (const [cat, catItems] of Object.entries(groceryList as Record<string, unknown>)) {
@@ -61,7 +62,6 @@ function parseGrocery(text: string): ParsedGrocery {
         if (result.items.length) return result;
       }
 
-      // Case 2: flat array
       if (Array.isArray(groceryList)) {
         result.items = groceryList.map((it) => parseItem(it as Record<string, unknown>));
         if (result.items.length) return result;
@@ -73,21 +73,12 @@ function parseGrocery(text: string): ParsedGrocery {
   return result;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  "Meat & Seafood": "🍗", "Meat": "🍗", "Seafood": "🐟",
-  "Dairy & Eggs": "🥛", "Dairy": "🥛", "Eggs": "🥚",
-  "Produce": "🥦", "Vegetables": "🥦", "Fruit": "🍎",
-  "Grains & Legumes": "🌾", "Grains": "🌾", "Legumes": "🫘",
-  "Beans & Legumes": "🫘", "Snacks": "🍿", "Beverages": "🧃",
-  "Frozen": "🧊", "Fats & Oils": "🫙", "Other": "📦",
-};
-
-const categoryIcon = (cat: string) =>
-  CATEGORY_ICONS[cat] ?? Object.entries(CATEGORY_ICONS).find(([k]) => cat.toLowerCase().includes(k.toLowerCase()))?.[1] ?? "🛒";
-
 const GroceryList = () => {
-  const { groceryResponse, preferences, setScreen, reset } = useApp();
+  const { groceryResponse, preferences, setScreen, setReturnScreen, reset, authUser } = useApp();
   const [resetting, setResetting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseGrocery(groceryResponse), [groceryResponse]);
   const budget = Number(preferences.budget) || 0;
@@ -105,6 +96,12 @@ const GroceryList = () => {
     return Array.from(map.entries());
   }, [parsed.items]);
 
+  const groupedAsRecord = useMemo(() => {
+    const rec: Record<string, unknown[]> = {};
+    for (const [cat, items] of grouped) rec[cat] = items;
+    return rec;
+  }, [grouped]);
+
   const startOver = async () => {
     setResetting(true);
     try {
@@ -113,6 +110,24 @@ const GroceryList = () => {
     } finally {
       setResetting(false);
     }
+  };
+
+  const handleSave = async () => {
+    setSaveError(null);
+    setSaving(true);
+    try {
+      await saveGroceryList({ total_estimated_cost_usd: total, grocery_list: groupedAsRecord });
+      setSaved(true);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveUnauthenticated = () => {
+    setReturnScreen(5);
+    setScreen(6);
   };
 
   if (resetting) {
@@ -142,6 +157,8 @@ const GroceryList = () => {
       </header>
 
       <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 pt-4 space-y-8">
+        {saveError && <ErrorAlert message={saveError} onDismiss={() => setSaveError(null)} />}
+
         {parsed.rawFallback && (
           <div className="border border-foreground p-4 text-sm whitespace-pre-wrap">{parsed.rawFallback}</div>
         )}
@@ -192,6 +209,20 @@ const GroceryList = () => {
       <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
         <div className="max-w-xl mx-auto px-5 py-4 flex items-center gap-3">
           <button type="button" onClick={() => setScreen(4)} className="fb-btn-outline">Back</button>
+          {authUser ? (
+            <button
+              type="button"
+              onClick={saved ? () => setScreen(8) : handleSave}
+              disabled={saving}
+              className="fb-btn-outline"
+            >
+              {saved ? "View saved ✓" : saving ? "Saving…" : "Save list"}
+            </button>
+          ) : (
+            <button type="button" onClick={handleSaveUnauthenticated} className="fb-btn-outline">
+              Save list
+            </button>
+          )}
           <button onClick={startOver} className="fb-btn flex-1">Start Over</button>
         </div>
       </footer>
