@@ -195,9 +195,66 @@ def save_preferences(
             )
 
 
+def get_user_zip(profile_id: str) -> str | None:
+    """Return the zip code stored for this profile, or None if not set."""
+    row = fetch_one(
+        "SELECT zip_code FROM user_grocery_preference WHERE profile_id = %s",
+        (profile_id,),
+    )
+    return row["zip_code"] if row and row.get("zip_code") else None
+
+
 # ── Food search ───────────────────────────────────────────────────────────────
 
+import re as _re
+
 _NUTRIENT_IDS = list(NUTRIENT_ID_MAP.keys())
+
+# Terms that indicate non-grocery-store items; these get a heavy score penalty
+# so common cuts (breast, thigh, drumstick) naturally surface first.
+_NON_GROCERY_TERMS = {
+    # Organ meats & offal
+    "giblet", "gizzard", "liver", "heart", "kidney", "lung", "spleen",
+    "feet", "head", "tripe", "tongue", "brain", "sweetbread", "oxtail",
+    # Unusual butchery terms
+    "neck", "back", "frame", "carcass", "capon", "stewing",
+    # USDA composite / aggregate records
+    "composite of", "separable lean", "separable fat",
+    # Baby food & infant formula
+    "babyfood", "baby food", "infant formula", "junior",
+    # Organ/offal USDA category labels
+    "variety meats", "by-products",
+    # Meatless / plant-based mis-categorised under the real food
+    "meatless",
+}
+
+# Noise tokens stripped from USDA descriptions to produce a readable display name.
+_USDA_NOISE = _re.compile(
+    r",\s*(?:"
+    r"broilers?\s+or\s+fryers?|roasting|capons?|stewing|baking|"
+    r"meat\s+(?:and\s+skin|only)|with\s+skin|without\s+skin|skin\s+not\s+eaten|"
+    r"separable\s+lean[^,]*|separable\s+fat[^,]*|composite\s+of[^,]*|"
+    r"ns\s+as\s+to\b[^,]*|all\s+classes|"
+    r"(?:cooked|raw|dry|unenriched|enriched|regular|instant|long-grain|short-grain|medium-grain)[^,]*|"
+    r"dry\s+heat|moist\s+heat|"
+    r"\d+%\s+lean[^,]*|farmed|wild|farm-raised|"
+    r"ready-to-(?:eat|cook|serve)[^,]*"
+    r")",
+    _re.IGNORECASE,
+)
+
+
+def _display_name(description: str) -> str:
+    """Return a grocery-store-friendly label for a USDA food description."""
+    # Strip parenthetical USDA notes like "(Includes foods for USDA's...)"
+    cleaned = _re.sub(r"\s*\([^)]*\)", "", description)
+    cleaned = _USDA_NOISE.sub("", cleaned)
+    cleaned = _re.sub(r",\s*,+", ",", cleaned).strip().strip(",").strip()
+    parts = [p.strip() for p in cleaned.split(",") if p.strip()]
+    # "Fish, salmon, Atlantic" → drop the generic "Fish" prefix
+    if len(parts) > 1 and parts[0].lower() == "fish":
+        parts = parts[1:]
+    return " ".join(p.title() for p in parts[:2]) or description.split(",")[0].title()
 
 _CUISINE_KEYWORDS: dict[str, list[str]] = {
     "Asian":          ["tofu", "bok choy", "rice", "soy", "edamame", "miso", "tempeh",
@@ -270,6 +327,42 @@ _DEFAULT_QTY: dict[str, int] = {
     "Other":          2,
 }
 
+# Items that should always be presented as a standard retail unit.
+# Maps a keyword (matched against the item name) to (unit_label, serving_size_g).
+_RETAIL_UNIT_OVERRIDES: dict[str, tuple[str, float]] = {
+    "egg": ("1 dozen", 600.0),   # 12 × 50g eggs
+}
+
+
+# Core ingredient keywords — deduplication collapses anything that contains the
+# same root word into one entry (e.g. "spinach salad", "baby spinach", "spinach
+# & mushroom omelette starter" all collapse to "spinach").
+_INGREDIENT_ROOTS: list[str] = [
+    "chicken", "beef", "pork", "turkey", "salmon", "tuna", "shrimp", "fish",
+    "egg", "milk", "cheese", "yogurt", "butter",
+    "spinach", "kale", "broccoli", "zucchini", "cauliflower", "carrot",
+    "tomato", "onion", "garlic", "potato", "pepper", "cucumber", "lettuce",
+    "apple", "banana", "berry", "orange", "mango", "avocado",
+    "rice", "pasta", "oat", "bread", "quinoa", "lentil", "bean",
+    "almond", "walnut", "peanut", "cashew",
+    "olive oil", "oil",
+    "asparagus", "mushroom", "celery", "beet", "corn", "pea",
+]
+
+# USDA data types that describe as-eaten dishes, not raw groceries.
+# We exclude these so "Grilled Chicken Breast" or "Spinach Salad No Dressing"
+# don't appear on a shopping list.
+_PREPARED_DATA_TYPES = {"survey_fndds_food", "sub_sample_food"}
+
+
+def _root_key(name: str) -> str:
+    """Return the first matching ingredient root for a name, or the name itself."""
+    lower = name.lower()
+    for root in _INGREDIENT_ROOTS:
+        if root in lower:
+            return root
+    return lower
+
 
 def extract_ingredients_from_meal_plan(meal_plan_text: str) -> list[dict]:
     """Parse a meal plan JSON string and return DB-matched ingredients for the grocery list."""
@@ -295,30 +388,55 @@ def extract_ingredients_from_meal_plan(meal_plan_text: str) -> list[dict]:
     except Exception:
         pass
 
-    # Deduplicate case-insensitively
-    seen_keys: set[str] = set()
+    # Deduplicate by ingredient root — collapses "Spinach Salad", "Baby Spinach",
+    # "Spinach Omelette Starter" all down to one "spinach" entry.
+    seen_roots: set[str] = set()
     unique: list[str] = []
     for ing in raw_ingredients:
-        key = ing.lower()
-        if key not in seen_keys:
-            seen_keys.add(key)
-            unique.append(ing)
+        root = _root_key(ing)
+        if root not in seen_roots:
+            seen_roots.add(root)
+            # Use the root itself as the search term for a cleaner DB match
+            unique.append(root if root != ing.lower() else ing)
 
-    # Look up each ingredient in the USDA food DB; fall back to name-only if no match
+    # Look up each ingredient in the USDA food DB.
+    # Rules:
+    #   - Exclude survey/sub-sample data types (as-eaten dishes, not raw groceries)
+    #   - Prefer foundation_food / sr_legacy_food over branded
+    #   - Prefer descriptions that start with the ingredient word
+    #   - Prefer shorter descriptions (less preparation detail)
     results: list[dict] = []
     seen_ids: set[int] = set()
+    excluded = tuple(_PREPARED_DATA_TYPES)
     for ing in unique:
+        # Match whole words only — "salmon" must not match "Salmonberries".
+        # Postgres ILIKE doesn't support word boundaries; use a regex alternative:
+        # description must contain the ingredient as a whole word (surrounded by
+        # start/end, space, comma, or punctuation).
         rows = fetch_all(
-            "SELECT fdc_id, description FROM food WHERE description ILIKE %s LIMIT 1",
-            (f"%{ing}%",),
+            """
+            SELECT fdc_id, description, data_type FROM food
+            WHERE description ~* %s
+              AND data_type NOT IN %s
+            ORDER BY
+                CASE WHEN description ILIKE %s THEN 0 ELSE 1 END,
+                CASE data_type
+                    WHEN 'foundation_food' THEN 1
+                    WHEN 'sr_legacy_food'  THEN 2
+                    ELSE 7
+                END,
+                char_length(description)
+            LIMIT 1
+            """,
+            (rf"(^|[^a-z]){_re.escape(ing)}([^a-z]|$)", excluded, f"{ing}%"),
         )
         if rows:
             fid = int(rows[0]["fdc_id"])
             if fid not in seen_ids:
                 seen_ids.add(fid)
-                results.append({"fdc_id": fid, "name": rows[0]["description"]})
+                results.append({"fdc_id": fid, "name": _display_name(rows[0]["description"])})
         else:
-            results.append({"fdc_id": 0, "name": ing})
+            results.append({"fdc_id": 0, "name": ing.title()})
 
     return results
 
@@ -332,26 +450,15 @@ def _categorise(name: str) -> str:
 
 
 def derive_grocery_list(selected_foods: list[dict]) -> dict:
-    fdc_ids = [int(f["fdc_id"]) for f in selected_foods]
-
-    # Get serving sizes from branded_food where available
-    branded_rows = fetch_all(
-        "SELECT fdc_id, serving_size FROM branded_food WHERE fdc_id = ANY(%s)",
-        (fdc_ids,),
-    )
-    serving_map: dict[int, float] = {
-        int(r["fdc_id"]): float(r["serving_size"])
-        for r in branded_rows
-        if r["serving_size"] is not None
-    }
-
     grocery_list: dict[str, list[dict]] = {}
 
     for food in selected_foods:
         fid = int(food["fdc_id"])
         name = food["name"]
         category = _categorise(name)
-        serving_size_g = serving_map.get(fid, _DEFAULT_SERVING_G.get(category, 300.0))
+        # Use category-based package weight for pricing — branded_food.serving_size
+        # is the nutritional serving (e.g. 28 g = 1 oz), not the purchase quantity.
+        serving_size_g = _DEFAULT_SERVING_G.get(category, 300.0)
         quantity_needed = _DEFAULT_QTY.get(category, 2)
 
         grocery_list.setdefault(category, []).append({
@@ -366,7 +473,20 @@ def derive_grocery_list(selected_foods: list[dict]) -> dict:
 
 def search_foods(query: str, profile_id: str | None = None, limit: int = 20) -> list[dict]:
     candidates = fetch_all(
-        "SELECT fdc_id, description, data_type FROM food WHERE description ILIKE %s LIMIT 100",
+        """
+        SELECT fdc_id, description, data_type FROM food
+        WHERE description ILIKE %s
+        ORDER BY CASE data_type
+            WHEN 'foundation_food'    THEN 1
+            WHEN 'sr_legacy_food'     THEN 2
+            WHEN 'survey_fndds_food'  THEN 3
+            WHEN 'sub_sample_food'    THEN 4
+            WHEN 'market_acquistion'  THEN 5
+            WHEN 'sample_food'        THEN 6
+            ELSE 7
+        END
+        LIMIT 100
+        """,
         (f"%{query}%",),
     )
     if not candidates:
@@ -439,6 +559,7 @@ def search_foods(query: str, profile_id: str | None = None, limit: int = 20) -> 
                 except (TypeError, ValueError):
                     pass
 
+    query_lower = query.lower()
     results = []
     for food in candidates:
         fid = int(food["fdc_id"])
@@ -452,14 +573,31 @@ def search_foods(query: str, profile_id: str | None = None, limit: int = 20) -> 
             reverse=True,
         )[:3]
 
-        # Boost score for culturally relevant foods
         name_lower = food["description"].lower()
+
+        # Prefer whole / survey foods over branded processed products
+        if food["data_type"] in (
+            "sr_legacy_food", "foundation_food", "survey_fndds_food",
+            "sub_sample_food", "market_acquistion", "sample_food",
+        ):
+            scaled = min(100.0, scaled + 20.0)
+
+        # Reward descriptions that start with the query term (e.g. "Chicken, breast"
+        # over "Adobo Chicken Wrap") — gives a clear whole-food preference
+        if name_lower.startswith(query_lower):
+            scaled = min(100.0, scaled + 10.0)
+
+        # Penalise organ meats, necks, and other non-grocery-store items
+        if any(term in name_lower for term in _NON_GROCERY_TERMS):
+            scaled = max(0.0, scaled - 40.0)
+
+        # Boost score for culturally relevant foods
         if cuisine_keywords and any(kw in name_lower for kw in cuisine_keywords):
             scaled = min(100.0, scaled + 15.0)
 
         results.append({
             "fdc_id": fid,
-            "name": food["description"],
+            "name": _display_name(food["description"]),
             "data_type": food["data_type"],
             "score": scaled,
             "top_nutrients": [_NUTRIENT_LABELS.get(k, k) for k in top],

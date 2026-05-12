@@ -123,10 +123,21 @@ interface DayPlan {
   meals: { name: string; description?: string }[];
 }
 
+interface MealAlternative {
+  name: string;
+}
+
+interface AlternativesPool {
+  breakfast: MealAlternative[];
+  lunch:     MealAlternative[];
+  dinner:    MealAlternative[];
+}
+
 interface ParsedPlan {
-  coverage: { name: string; key: string; pct: number }[];
-  days: DayPlan[];
-  swaps: { food: string; reason: string }[];
+  coverage:     { name: string; key: string; pct: number }[];
+  days:         DayPlan[];
+  swaps:        { food: string; reason: string }[];
+  alternatives: AlternativesPool;
   rawFallback?: string;
 }
 
@@ -194,8 +205,9 @@ function parseMealContent(raw: string): string {
     .trim();
 }
 
-function parseMealPlan(text: string): ParsedPlan {
-  const result: ParsedPlan = { coverage: [], days: [], swaps: [] };
+export function parseMealPlan(text: string): ParsedPlan {
+  const emptyPool: AlternativesPool = { breakfast: [], lunch: [], dinner: [] };
+  const result: ParsedPlan = { coverage: [], days: [], swaps: [], alternatives: emptyPool };
   if (!text) return result;
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -236,6 +248,26 @@ function parseMealPlan(text: string): ParsedPlan {
         });
       }
 
+      const parseAltList = (raw: unknown): MealAlternative[] => {
+        if (!Array.isArray(raw)) return [];
+        return (raw as unknown[])
+          .slice(0, 5)
+          .map((m) =>
+            typeof m === "string"
+              ? { name: m }
+              : { name: String((m as Record<string, unknown>).name ?? "") }
+          )
+          .filter((a) => a.name.length > 0);
+      };
+      const alts = (obj.alternatives ?? obj.alt_meals) as Record<string, unknown> | undefined;
+      if (alts && typeof alts === "object" && !Array.isArray(alts)) {
+        result.alternatives = {
+          breakfast: parseAltList(alts.breakfast),
+          lunch:     parseAltList(alts.lunch),
+          dinner:    parseAltList(alts.dinner),
+        };
+      }
+
       if (result.days.length) return result;
     } catch { /* ignore */ }
   }
@@ -258,8 +290,24 @@ const MealPlan = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeDay, setActiveDay] = useState(0);
+  const [swapping, setSwapping] = useState<{ dayIdx: number; mealIdx: number } | null>(null);
+  const [swappedMeals, setSwappedMeals] = useState<Record<string, string>>({});
+  const [justSwapped, setJustSwapped] = useState<string | null>(null);
 
   const plan = useMemo(() => parseMealPlan(mealPlanResponse), [mealPlanResponse]);
+
+  const MEAL_TYPE_KEYS: Array<keyof AlternativesPool> = ["breakfast", "lunch", "dinner"];
+
+  const getAlternatives = (pool: AlternativesPool, mealIdx: number) =>
+    pool[MEAL_TYPE_KEYS[mealIdx] ?? "breakfast"].slice(0, 5);
+
+  const handleSwap = (dayIdx: number, mealIdx: number, newName: string) => {
+    const key = `${dayIdx}-${mealIdx}`;
+    setSwappedMeals((prev) => ({ ...prev, [key]: newName }));
+    setSwapping(null);
+    setJustSwapped(key);
+    setTimeout(() => setJustSwapped(null), 1800);
+  };
 
   const generateGrocery = async () => {
     if (!profileId) { setError("Profile not found. Please restart."); return; }
@@ -315,16 +363,62 @@ const MealPlan = () => {
             <h2 className="fb-section-title">{currentDay.day}</h2>
             <div className="space-y-3">
               {currentDay.meals.map((meal, i) => {
-                const meta = MEAL_META[i] ?? MEAL_META[0];
-                const content = parseMealContent(meal.name);
+                const meta       = MEAL_META[i] ?? MEAL_META[0];
+                const key        = `${activeDay}-${i}`;
+                const displayName = swappedMeals[key] ?? (parseMealContent(meal.name) || meal.name);
+                const isSwapping  = swapping?.dayIdx === activeDay && swapping?.mealIdx === i;
+                const wasSwapped  = justSwapped === key;
+                const altOptions  = getAlternatives(plan.alternatives, i);
+                const hasAlts     = altOptions.length > 0;
                 return (
-                  <div key={i} className={`border-2 border-foreground p-4 ${meta.bg}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{meta.icon}</span>
-                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{meta.label}</span>
+                  <div key={i}>
+                    <div
+                      className={`border-2 border-foreground p-4 ${meta.bg} ${wasSwapped ? "ring-2 ring-foreground ring-offset-1" : ""}`}
+                      style={{ transition: "box-shadow 0.4s" }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{meta.icon}</span>
+                          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{meta.label}</span>
+                        </div>
+                        {hasAlts && (
+                          <button
+                            type="button"
+                            onClick={() => setSwapping(isSwapping ? null : { dayIdx: activeDay, mealIdx: i })}
+                            className="fb-btn-outline"
+                            style={{ height: "2rem", padding: "0 0.75rem", fontSize: "0.75rem" }}
+                            aria-expanded={isSwapping}
+                            aria-label={`Swap ${meta.label}`}
+                          >
+                            {isSwapping ? "Cancel" : "Swap"}
+                          </button>
+                        )}
+                      </div>
+                      <p className="font-semibold text-base leading-snug">{displayName}</p>
+                      {wasSwapped && (
+                        <p className="text-xs font-medium mt-1 text-foreground">Meal updated ✓</p>
+                      )}
+                      {meal.description && !wasSwapped && (
+                        <p className="text-sm text-muted-foreground mt-1">{meal.description}</p>
+                      )}
                     </div>
-                    <p className="font-semibold text-base leading-snug">{content || meal.name}</p>
-                    {meal.description && <p className="text-sm text-muted-foreground mt-1">{meal.description}</p>}
+                    {isSwapping && (
+                      <div className="border-2 border-t-0 border-foreground bg-white p-3 space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                          Choose a replacement
+                        </p>
+                        {altOptions.map((alt, ai) => (
+                          <button
+                            key={ai}
+                            type="button"
+                            onClick={() => handleSwap(activeDay, i, alt.name)}
+                            className="w-full text-left border border-foreground px-3 py-2 text-sm font-medium hover:bg-foreground hover:text-white transition-colors"
+                          >
+                            {alt.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}

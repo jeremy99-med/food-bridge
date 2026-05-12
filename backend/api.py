@@ -17,8 +17,13 @@ import auth_db
 import user
 import planner
 from dependencies import get_current_user
+from grocery_api import _ensure_zip_cache_table
 
 app = FastAPI(title="FoodBridge API", version="0.1.0")
+
+@app.on_event("startup")
+def _startup() -> None:
+    _ensure_zip_cache_table()
 
 app.add_middleware(
     CORSMiddleware,
@@ -174,6 +179,13 @@ async def grocery_list(req: GroceryListRequest):
 
     grocery_list_data = data.get("grocery_list", {})
 
+    # Resolve user's zip for location-accurate Kroger prices
+    zip_code: str | None = None
+    try:
+        zip_code = user.get_user_zip(req.profile_id)
+    except Exception:
+        pass
+
     # Collect all items for bulk price lookup
     all_items = []
     for items in grocery_list_data.values():
@@ -181,7 +193,10 @@ async def grocery_list(req: GroceryListRequest):
             all_items.extend(items)
 
     prices = await asyncio.gather(
-        *[get_grocery_price(it.get("name", ""), float(it.get("serving_size_g", 100))) for it in all_items],
+        *[
+            get_grocery_price(it.get("name", ""), float(it.get("serving_size_g", 100)), zip_code)
+            for it in all_items
+        ],
         return_exceptions=True,
     )
 

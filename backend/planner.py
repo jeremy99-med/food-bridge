@@ -1,7 +1,9 @@
 """
 LangChain agents for step 4 (meal plan) and step 5 (grocery list).
 """
+import json
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -102,8 +104,67 @@ Return ONLY this exact JSON shape:
     {"day": "Day 1", "meals": [{"name": "Breakfast: Oats + Yogurt"}, {"name": "Lunch: Tofu Stir-fry + Broccoli"}, {"name": "Dinner: Lentil Soup + Rice"}]}
   ],
   "nutrient_coverage": {"calories_kcal": 95, "protein_g": 110, "fiber_g": 88},
-  "suggested_swaps": [{"original": "Candy Bar", "replacement": "Mixed Berries", "reason": "Substituted — user takes insulin; high-sugar foods replaced with low-GI alternatives"}]
-}""")
+  "suggested_swaps": [{"original": "Candy Bar", "replacement": "Mixed Berries", "reason": "Substituted — user takes insulin; high-sugar foods replaced with low-GI alternatives"}],
+  "alternatives": {
+    "breakfast": [
+      {"name": "Greek Yogurt Parfait with Berries"},
+      {"name": "Scrambled Eggs with Spinach"},
+      {"name": "Overnight Oats with Chia Seeds"},
+      {"name": "Avocado Toast on Whole Grain Bread"},
+      {"name": "Cottage Cheese with Flaxseed and Fruit"}
+    ],
+    "lunch": [
+      {"name": "Grilled Chicken Salad with Olive Oil"},
+      {"name": "Lentil and Vegetable Soup"},
+      {"name": "Brown Rice Bowl with Edamame and Vegetables"},
+      {"name": "Turkey and Avocado Wrap on Whole Grain"},
+      {"name": "Quinoa Tabbouleh with Chickpeas"}
+    ],
+    "dinner": [
+      {"name": "Baked Salmon with Roasted Broccoli"},
+      {"name": "Chicken Stir-fry with Brown Rice"},
+      {"name": "Black Bean Tacos on Corn Tortillas"},
+      {"name": "Turkey Meatballs with Zucchini Noodles"},
+      {"name": "Lentil Dal with Cauliflower Rice"}
+    ]
+  }
+}
+
+CRITICAL: The "alternatives" key MUST be present in your response. All 15 alternatives must
+satisfy the SAME allergy, dietary preference, medication, and health condition constraints
+applied to the main meal plan. Do not repeat any meal from the main plan in alternatives.
+Exactly 5 alternatives per meal type (breakfast, lunch, dinner).""")
+
+
+def _extract_json(text: str) -> str:
+    """Extract the first valid JSON object containing 'days' from agent output."""
+    # Try code fences first (```json ... ``` or ``` ... ```)
+    for m in re.finditer(r'```(?:json)?\s*\n?(\{.+?\})\s*\n?```', text, re.DOTALL):
+        candidate = m.group(1)
+        try:
+            obj = json.loads(candidate)
+            if "days" in obj:
+                return candidate
+        except json.JSONDecodeError:
+            pass
+    # Fall back to raw brace scan
+    for m in re.finditer(r'\{', text):
+        start = m.start()
+        depth = 0
+        for i, ch in enumerate(text[start:]):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:start + i + 1]
+                    try:
+                        obj = json.loads(candidate)
+                        if "days" in obj:
+                            return candidate
+                    except json.JSONDecodeError:
+                        break
+    return text
 
 
 def generate_meal_plan(profile_id: str, selected_foods: list[dict]) -> str:
@@ -120,9 +181,19 @@ def generate_meal_plan(profile_id: str, selected_foods: list[dict]) -> str:
         "For insulin/diabetes: replace high-sugar or high-GI foods with oats, lentils, berries, eggs, leafy greens, or brown rice. "
         "Search the food table to find real substitute names (SELECT description FROM food WHERE description ILIKE '%oats%' LIMIT 5).\n"
         "Step 4: Build a complete 7-day meal plan (all 7 days, 3 meals each) using the substituted foods and the user's daily values.\n"
-        "Step 5: Return the JSON. Every day must have exactly 3 meals. suggested_swaps must document every substitution made."
+        "Step 5: Generate the 'alternatives' pool — exactly 5 breakfast, 5 lunch, and 5 dinner options "
+        "that satisfy ALL the same allergy, dietary, medication, and condition constraints. "
+        "Do NOT repeat any meal already in the 7-day plan.\n"
+        "Step 6: Output ONLY the raw JSON object — no prose, no code fences, no explanation before or after."
     )
     result = _meal_plan_agent.invoke({"messages": [{"role": "user", "content": message}]})
-    return result["messages"][-1].content
+    raw = result["messages"][-1].content
+    if isinstance(raw, list):
+        raw = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in raw
+            if not isinstance(block, dict) or block.get("type") == "text"
+        )
+    return _extract_json(raw)
 
 
