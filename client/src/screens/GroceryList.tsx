@@ -18,7 +18,35 @@ interface GroceryItem {
 interface ParsedGrocery {
   items: GroceryItem[];
   total: number;
+  budgetAdjusted?: boolean;
   rawFallback?: string;
+}
+
+interface MealInstructions {
+  name: string;
+  prep_time?: string;
+  cook_time?: string;
+  temperature?: string | null;
+  servings?: number;
+  ingredients?: string[];
+  steps?: string[];
+}
+
+interface MealDayPlan {
+  day: string;
+  meals: MealInstructions[];
+}
+
+function mealIcon(name: string): string {
+  const l = name.toLowerCase();
+  if (l.includes("breakfast")) return "🌅";
+  if (l.includes("lunch")) return "☀️";
+  if (l.includes("dinner")) return "🌙";
+  return "🍽️";
+}
+
+function stripMealPrefix(name: string): string {
+  return name.replace(/^(breakfast|lunch|dinner|snack)\s*[:–\-]\s*/i, "").trim();
 }
 
 function parseItem(i: Record<string, unknown>, category?: string): GroceryItem {
@@ -49,6 +77,7 @@ function parseGrocery(text: string): ParsedGrocery {
 
       const totalRaw = obj.total_estimated_cost_usd ?? obj.total ?? obj.estimated_total ?? obj.total_cost;
       result.total = typeof totalRaw === "number" ? totalRaw : Number(String(totalRaw ?? "").replace(/[^\d.]/g, "")) || 0;
+      result.budgetAdjusted = obj.budget_adjusted === true;
 
       const groceryList = obj.grocery_list ?? obj.items ?? obj.list;
       if (groceryList && typeof groceryList === "object" && !Array.isArray(groceryList)) {
@@ -73,17 +102,151 @@ function parseGrocery(text: string): ParsedGrocery {
   return result;
 }
 
+function parseMealDays(text: string): MealDayPlan[] {
+  if (!text) return [];
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return [];
+    const obj = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    const days = (obj.days ?? obj.plan ?? obj.meal_plan) as MealDayPlan[] | undefined;
+    return Array.isArray(days) ? days : [];
+  } catch {
+    return [];
+  }
+}
+
+interface MealPlanSectionProps {
+  days: MealDayPlan[];
+}
+
+export function MealPlanSection({ days }: MealPlanSectionProps) {
+  const [open, setOpen] = useState(false);
+  const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
+
+  if (!days.length) return null;
+
+  const toggleMeal = (key: string) =>
+    setExpandedMeal((prev) => (prev === key ? null : key));
+
+  return (
+    <section className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-baseline justify-between border-b border-foreground pb-2"
+      >
+        <h2 className="font-bold text-lg">📋 Your 7-Day Meal Plan</h2>
+        <span className="text-sm">{open ? "▲" : "▾"}</span>
+      </button>
+
+      {open && (
+        <div className="space-y-6">
+          {days.map((day, dayIdx) => (
+            <div key={dayIdx} className="space-y-1.5">
+              <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">
+                {day.day}
+              </p>
+              <ul className="space-y-1">
+                {(day.meals ?? []).map((meal, mealIdx) => {
+                  const key = `${dayIdx}-${mealIdx}`;
+                  const isOpen = expandedMeal === key;
+                  const hasInstructions =
+                    (meal.ingredients && meal.ingredients.length > 0) ||
+                    (meal.steps && meal.steps.length > 0);
+
+                  return (
+                    <li key={mealIdx}>
+                      <button
+                        type="button"
+                        onClick={() => hasInstructions && toggleMeal(key)}
+                        className={`w-full text-left px-3 py-2.5 border transition-colors ${
+                          isOpen
+                            ? "border-foreground"
+                            : "border-surface-2 hover:border-foreground"
+                        } ${!hasInstructions ? "cursor-default" : ""}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">
+                            {mealIcon(meal.name)} {stripMealPrefix(meal.name)}
+                          </span>
+                          {hasInstructions && (
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {isOpen ? "▲" : "▾"}
+                            </span>
+                          )}
+                        </div>
+                        {(meal.prep_time || meal.cook_time) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {[
+                              meal.prep_time && `Prep ${meal.prep_time}`,
+                              meal.cook_time && `Cook ${meal.cook_time}`,
+                              meal.temperature && `${meal.temperature}`,
+                              meal.servings != null && `Serves ${meal.servings}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
+                      </button>
+
+                      {isOpen && hasInstructions && (
+                        <div className="border border-t-0 border-foreground px-3 py-3 space-y-3">
+                          {meal.ingredients && meal.ingredients.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wider mb-1.5">
+                                Ingredients
+                              </p>
+                              <ul className="space-y-0.5">
+                                {meal.ingredients.map((ing, i) => (
+                                  <li key={i} className="text-xs text-muted-foreground">
+                                    · {ing}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {meal.steps && meal.steps.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wider mb-1.5">
+                                Instructions
+                              </p>
+                              <ol className="space-y-1.5">
+                                {meal.steps.map((step, i) => (
+                                  <li key={i} className="text-xs text-muted-foreground">
+                                    {i + 1}. {step}
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 const GroceryList = () => {
-  const { groceryResponse, preferences, setScreen, setReturnScreen, reset, authUser } = useApp();
+  const { groceryResponse, mealPlanResponse, preferences, setScreen, setReturnScreen, reset, authUser } = useApp();
   const [resetting, setResetting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const parsed = useMemo(() => parseGrocery(groceryResponse), [groceryResponse]);
+  const mealDays = useMemo(() => parseMealDays(mealPlanResponse), [mealPlanResponse]);
   const budget = Number(preferences.budget) || 0;
   const total = parsed.total || parsed.items.reduce((s, i) => s + (i.price ?? 0), 0);
-  const within = budget > 0 ? total <= budget : true;
+  const within      = budget > 0 ? total <= budget : true;
+  const slightlyOver = budget > 0 && total > budget && total <= budget + 10;
+  const overBudget  = budget > 0 && total > budget + 10;
   const pct = budget > 0 ? Math.min(100, (total / budget) * 100) : 0;
 
   const grouped = useMemo(() => {
@@ -95,6 +258,9 @@ const GroceryList = () => {
     }
     return Array.from(map.entries());
   }, [parsed.items]);
+
+  const spiceGroups = grouped.filter(([cat]) => cat === "Spices & Pantry");
+  const mainGroups  = grouped.filter(([cat]) => cat !== "Spices & Pantry");
 
   const groupedAsRecord = useMemo(() => {
     const rec: Record<string, unknown[]> = {};
@@ -116,7 +282,16 @@ const GroceryList = () => {
     setSaveError(null);
     setSaving(true);
     try {
-      await saveGroceryList({ total_estimated_cost_usd: total, grocery_list: groupedAsRecord });
+      let mealPlanJson: object | null = null;
+      try {
+        const jsonMatch = mealPlanResponse?.match(/\{[\s\S]*\}/);
+        if (jsonMatch) mealPlanJson = JSON.parse(jsonMatch[0]) as object;
+      } catch { /* ignore */ }
+      await saveGroceryList({
+        total_estimated_cost_usd: total,
+        grocery_list: groupedAsRecord,
+        meal_plan_json: mealPlanJson,
+      });
       setSaved(true);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save");
@@ -147,10 +322,23 @@ const GroceryList = () => {
           <div className="mt-5 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Budget ${budget.toFixed(0)}</span>
-              <span className="font-bold">{within ? "Within budget ✓" : "Over budget ✗"}</span>
+              <span className="font-bold">
+                {within
+                  ? "Within budget ✓"
+                  : slightlyOver
+                  ? <>Slightly over (~${(total - budget).toFixed(0)} over){" "}
+                      <span
+                        title="Up to $10 over budget — all planned meals are included. Spices are not counted toward this total."
+                        className="cursor-help text-muted-foreground"
+                      >ⓘ</span></>
+                  : "Over budget ✗"}
+              </span>
             </div>
             <div className="h-2 bg-surface-2">
-              <div className="h-full bg-foreground" style={{ width: `${pct}%` }} />
+              <div
+                className={`h-full ${overBudget ? "bg-foreground" : slightlyOver ? "opacity-60 bg-foreground" : "bg-foreground"}`}
+                style={{ width: `${pct}%` }}
+              />
             </div>
           </div>
         )}
@@ -159,11 +347,34 @@ const GroceryList = () => {
       <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 pt-4 space-y-8">
         {saveError && <ErrorAlert message={saveError} onDismiss={() => setSaveError(null)} />}
 
+        {parsed.budgetAdjusted && (
+          <div className="border border-foreground px-4 py-3 text-sm">
+            Some items or quantities were adjusted to fit your budget. Your meal plan is still complete — quantities reflect one week of shopping.
+          </div>
+        )}
+
         {parsed.rawFallback && (
           <div className="border border-foreground p-4 text-sm whitespace-pre-wrap">{parsed.rawFallback}</div>
         )}
 
-        {grouped.map(([cat, items]) => (
+        {spiceGroups.length > 0 && spiceGroups.map(([, items]) => (
+          <section key="Spices & Pantry" className="space-y-3">
+            <div className="flex items-baseline justify-between border-b border-foreground pb-2">
+              <h2 className="font-bold text-lg">🌿 Spices & Pantry</h2>
+              <span className="text-xs text-muted-foreground tabular-nums italic">not included in budget</span>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-1">Check your pantry — you may already have these.</p>
+            <ul className="divide-y divide-surface-2">
+              {items.map((it, i) => (
+                <li key={i} className="py-2 flex items-center justify-between text-sm">
+                  <span className="font-medium">{it.name}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+
+        {mainGroups.map(([cat, items]) => (
           <section key={cat} className="space-y-3">
             <div className="flex items-baseline justify-between border-b border-foreground pb-2">
               <h2 className="font-bold text-lg">{categoryIcon(cat)} {cat}</h2>
@@ -204,6 +415,8 @@ const GroceryList = () => {
             </ul>
           </section>
         ))}
+
+        <MealPlanSection days={mealDays} />
       </main>
 
       <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">

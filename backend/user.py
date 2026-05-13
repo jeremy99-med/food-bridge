@@ -233,13 +233,84 @@ _USDA_NOISE = _re.compile(
     r",\s*(?:"
     r"broilers?\s+or\s+fryers?|roasting|capons?|stewing|baking|"
     r"meat\s+(?:and\s+skin|only)|with\s+skin|without\s+skin|skin\s+not\s+eaten|"
+    r"with\s+peel|without\s+peel|peeled|unpeeled|"
     r"separable\s+lean[^,]*|separable\s+fat[^,]*|composite\s+of[^,]*|"
     r"ns\s+as\s+to\b[^,]*|all\s+classes|"
-    r"(?:cooked|raw|dry|unenriched|enriched|regular|instant|long-grain|short-grain|medium-grain)[^,]*|"
+    r"(?:cooked|raw|dry|fresh|frozen|canned|unenriched|enriched|regular|instant|long-grain|short-grain|medium-grain)[^,]*|"
     r"dry\s+heat|moist\s+heat|"
     r"\d+%\s+lean[^,]*|farmed|wild|farm-raised|"
     r"ready-to-(?:eat|cook|serve)[^,]*"
     r")",
+    _re.IGNORECASE,
+)
+
+# Maps known bad USDA-derived display names to consumer-friendly grocery store names.
+_NAME_NORMALIZATIONS: dict[str, str] = {
+    "Egg Yolk":          "Eggs",
+    "Egg White":         "Eggs",
+    "Egg Whole":         "Eggs",
+    "Pepper Banana":     "Banana Pepper",
+    "Peppers Banana":    "Banana Peppers",
+    "Pepper Bell":       "Bell Pepper",
+    "Peppers Bell":      "Bell Peppers",
+    "Pepper Sweet":      "Sweet Pepper",
+    "Potato Sweet":      "Sweet Potato",
+    "Onion Green":       "Green Onion",
+    "Onions Green":      "Green Onions",
+    "Mushroom Enoki":    "Enoki Mushrooms",
+    "Mushroom Shiitake": "Shiitake Mushrooms",
+    "Mushroom Portobello": "Portobello Mushrooms",
+    "Beans Green":       "Green Beans",
+    "Bean Green":        "Green Bean",
+    "Peas Snow":         "Snow Peas",
+    "Peas Sugar Snap":   "Sugar Snap Peas",
+    "Lemon Peel":        "Lemons",
+    "Lime Peel":         "Limes",
+    "Orange Peel":       "Oranges",
+    "Angel Hair":        "Angel Hair Pasta",
+    "Fettuccine":        "Fettuccine Pasta",
+    "Fettuccini":        "Fettuccine Pasta",
+    "Linguine":          "Linguine Pasta",
+    "Linguini":          "Linguine Pasta",
+    "Farfalle":          "Farfalle Pasta",
+    "Rotini":            "Rotini Pasta",
+    "Tagliatelle":       "Tagliatelle Pasta",
+    "Bucatini":          "Bucatini Pasta",
+    # USDA comma-reversed names
+    "Oil Corn":          "Corn Oil",
+    "Oil Canola":        "Canola Oil",
+    "Oil Olive":         "Olive Oil",
+    "Onions Red":        "Red Onions",
+    "Onion Red":         "Red Onion",
+    "Asparagus Green":   "Asparagus",
+    "Soy Sauce Made From Soy": "Soy Sauce",
+    # Juice forms → buy the whole fruit
+    "Lemon Juice":       "Lemons",
+    "Lime Juice":        "Limes",
+    "Orange Juice":      "Oranges",
+}
+
+# Words in a meal-plan part that signal it is a prepared dish, not a raw grocery.
+# Used to skip non-ingredient parts that have no matching ingredient root.
+_PREPARED_DISH_TERMS = {
+    # Dish types
+    "omelet", "omelette", "scramble", "skillet", "frittata", "quiche", "muffin",
+    "salad", "stir-fry", "stir fry", "soup", "stew", "casserole", "curry",
+    "wrap", "sandwich", "bowl", "parfait", "pudding", "porridge",
+    "pancake", "waffle", "smoothie", "hash", "toast", "tartine",
+    "piccata", "noodle", "noodles", "fritters",
+    # Cooking method words — only filter parts with NO ingredient root
+    # (e.g. "Roasted Vegetables" has no root; "Roasted Chicken" has root "chicken" → bypassed)
+    "roasted", "grilled", "sauteed", "sautéed", "steamed", "braised",
+    "stewed", "baked", "fried", "seared", "poached",
+    # Generic non-buyable descriptors
+    "vegetables", "greens", "mixed", "assorted",
+}
+
+# DB description patterns that indicate a processed product, not a raw grocery.
+# Applied as a post-filter on USDA query results.
+_PROCESSED_DESC_RE = _re.compile(
+    r"\b(dip|spread|rings|fritter|patties|patty|pie|roll|wing|neck|back|giblet|gizzard|cutlet)\b",
     _re.IGNORECASE,
 )
 
@@ -254,7 +325,11 @@ def _display_name(description: str) -> str:
     # "Fish, salmon, Atlantic" → drop the generic "Fish" prefix
     if len(parts) > 1 and parts[0].lower() == "fish":
         parts = parts[1:]
-    return " ".join(p.title() for p in parts[:2]) or description.split(",")[0].title()
+    # "Spices, garlic powder" → drop "Spices" prefix so result is "Garlic Powder"
+    if len(parts) > 1 and parts[0].lower() == "spices":
+        parts = parts[1:]
+    name = " ".join(p.title() for p in parts[:2]) or description.split(",")[0].title()
+    return _NAME_NORMALIZATIONS.get(name, name)
 
 _CUISINE_KEYWORDS: dict[str, list[str]] = {
     "Asian":          ["tofu", "bok choy", "rice", "soy", "edamame", "miso", "tempeh",
@@ -294,43 +369,74 @@ _NUTRIENT_LABELS = {
 # ── Grocery list derivation ───────────────────────────────────────────────────
 
 _CATEGORY_RULES: list[tuple[list[str], str]] = [
+    # Nut & seed butters must come before Dairy so "almond butter" → Nuts & Seeds
+    (["almond butter", "peanut butter", "cashew butter", "sunflower butter",
+      "nut butter", "nut", "almond", "walnut", "cashew", "peanut", "seed", "tahini"], "Nuts & Seeds"),
     (["chicken", "beef", "pork", "turkey", "lamb", "bison", "meat"], "Meat & Seafood"),
-    (["salmon", "tuna", "tilapia", "cod", "shrimp", "fish", "crab", "lobster", "seafood"], "Meat & Seafood"),
+    (["salmon", "tuna", "tilapia", "cod", "haddock", "halibut", "trout", "bass",
+      "catfish", "mahi", "snapper", "shrimp", "fish", "crab", "lobster", "seafood",
+      "nuggets"], "Meat & Seafood"),
+    # "butter" kept here for real dairy butter; nut butters already matched above
     (["milk", "yogurt", "cheese", "butter", "cream", "whey"], "Dairy & Eggs"),
     (["egg"], "Dairy & Eggs"),
+    # Fats & Oils BEFORE Produce so "Corn Oil" → oil matches here, not "corn" in Produce
+    # "olive oil" used instead of bare "olive" to avoid miscategorising black olives
+    (["corn oil", "canola oil", "sesame oil", "peanut oil", "sunflower oil",
+      "olive oil", "avocado oil", "coconut oil", "oil", "ghee"], "Fats & Oils"),
+    # Compound spice forms BEFORE Produce so "garlic powder" → Spices & Pantry,
+    # not "garlic" → Produce. Must be checked before the Produce rule.
+    (["garlic powder", "garlic salt", "onion powder", "onion flakes", "onion salt",
+      "black pepper", "white pepper", "red pepper flake", "cayenne pepper",
+      "ginger powder", "ground ginger", "ground cumin", "ground cinnamon",
+      "ground nutmeg", "ground cloves", "celery salt", "celery seed",
+      "lemon pepper", "smoked paprika"], "Spices & Pantry"),
     (["broccoli", "spinach", "kale", "lettuce", "carrot", "tomato", "cucumber",
-      "pepper", "onion", "garlic", "potato", "sweet potato", "zucchini",
-      "apple", "banana", "berry", "orange", "mango", "fruit", "vegetable"], "Produce"),
+      "pepper", "onion", "garlic", "ginger", "potato", "sweet potato", "zucchini",
+      "apple", "banana", "berry", "orange", "mango", "lemon", "lime",
+      "fruit", "vegetable",
+      "avocado", "cauliflower", "asparagus", "mushroom", "celery", "beet",
+      "cabbage", "bok choy", "eggplant", "artichoke", "leek", "radish",
+      "turnip", "parsnip", "squash", "pumpkin", "corn", "pea",
+      "green bean", "brussels", "sprout"], "Produce"),
     (["oat", "rice", "pasta", "bread", "quinoa", "barley", "wheat", "flour", "cereal", "grain"], "Grains & Legumes"),
-    (["bean", "lentil", "chickpea", "pea", "legume", "tofu", "tempeh"], "Grains & Legumes"),
-    (["oil", "olive", "butter", "ghee", "avocado oil", "coconut oil"], "Fats & Oils"),
-    (["nut", "almond", "walnut", "cashew", "peanut", "seed", "tahini"], "Nuts & Seeds"),
+    (["bean", "lentil", "chickpea", "legume", "tofu", "tempeh"], "Grains & Legumes"),
+    # Spices & Pantry — lowest priority, catches dried spices/herbs that matched nothing above
+    (["paprika", "cumin", "oregano", "thyme", "rosemary", "basil", "cinnamon",
+      "turmeric", "cayenne", "chili powder", "bay leaf", "nutmeg", "cloves",
+      "allspice", "cardamom", "dill", "sage", "tarragon", "marjoram",
+      "italian seasoning", "seasoning", "spice blend", "herbs de provence",
+      "curry powder", "garam masala", "salt", "pepper"], "Spices & Pantry"),
 ]
 
 _DEFAULT_SERVING_G: dict[str, float] = {
-    "Meat & Seafood": 450.0,
-    "Dairy & Eggs":   500.0,
-    "Produce":        300.0,
+    "Meat & Seafood":   450.0,
+    "Dairy & Eggs":     500.0,
+    "Produce":          300.0,
     "Grains & Legumes": 500.0,
-    "Fats & Oils":    250.0,
-    "Nuts & Seeds":   200.0,
-    "Other":          300.0,
+    "Fats & Oils":      500.0,   # ~500ml bottle of oil
+    "Nuts & Seeds":     200.0,
+    "Spices & Pantry":   50.0,   # small spice jar
+    "Other":            300.0,
 }
 
 _DEFAULT_QTY: dict[str, int] = {
-    "Meat & Seafood": 3,
-    "Dairy & Eggs":   2,
-    "Produce":        2,
+    "Meat & Seafood":   3,
+    "Dairy & Eggs":     2,
+    "Produce":          2,
     "Grains & Legumes": 1,
-    "Fats & Oils":    1,
-    "Nuts & Seeds":   1,
-    "Other":          2,
+    "Fats & Oils":      1,
+    "Nuts & Seeds":     1,
+    "Spices & Pantry":  1,
+    "Other":            2,
 }
 
 # Items that should always be presented as a standard retail unit.
 # Maps a keyword (matched against the item name) to (unit_label, serving_size_g).
 _RETAIL_UNIT_OVERRIDES: dict[str, tuple[str, float]] = {
-    "egg": ("1 dozen", 600.0),   # 12 × 50g eggs
+    "egg":    ("1 dozen",  600.0),   # 12 × 50g eggs
+    "garlic": ("1 head",    50.0),   # 1 head ≈ 50g; Kroger matches large bulk packages otherwise
+    "lemon":  ("2 lemons", 150.0),
+    "lime":   ("3 limes",  150.0),
 }
 
 
@@ -338,12 +444,27 @@ _RETAIL_UNIT_OVERRIDES: dict[str, tuple[str, float]] = {
 # same root word into one entry (e.g. "spinach salad", "baby spinach", "spinach
 # & mushroom omelette starter" all collapse to "spinach").
 _INGREDIENT_ROOTS: list[str] = [
+    # Specific chicken cuts before bare "chicken" so "Grilled Chicken Breast" → "chicken breast"
+    "chicken breast", "chicken thigh", "chicken drumstick", "chicken leg",
+    # Cured/processed meats before bare "pork" to get specific DB entries
+    "bacon", "ham", "sausage",
     "chicken", "beef", "pork", "turkey", "salmon", "tuna", "shrimp", "fish",
-    "egg", "milk", "cheese", "yogurt", "butter",
+    "egg", "milk", "cheese", "yogurt",
+    # compound nut butters must come before bare "butter" to win the substring match
+    "almond butter", "peanut butter", "cashew butter", "sunflower butter",
+    "butter",
     "spinach", "kale", "broccoli", "zucchini", "cauliflower", "carrot",
-    "tomato", "onion", "garlic", "potato", "pepper", "cucumber", "lettuce",
+    "tomato",
+    # Compound spice forms before their base vegetable so "garlic powder" → spice root
+    "garlic powder", "garlic salt", "onion powder", "onion flakes", "onion salt",
+    "black pepper", "white pepper", "red pepper flakes", "cayenne pepper",
+    "ginger powder", "ground ginger",
+    "onion", "garlic", "potato", "pepper", "cucumber", "lettuce",
     "apple", "banana", "berry", "orange", "mango", "avocado",
-    "rice", "pasta", "oat", "bread", "quinoa", "lentil", "bean",
+    # Specific pasta shapes before bare "pasta" so "Angel Hair" → root "angel hair"
+    "angel hair", "spaghetti", "fettuccine", "fettuccini", "linguine", "linguini",
+    "penne", "rigatoni", "farfalle", "rotini", "orzo", "tagliatelle", "bucatini",
+    "rice", "pasta", "oat", "bread", "quinoa", "lentil", "green bean", "tofu", "bean",
     "almond", "walnut", "peanut", "cashew",
     "olive oil", "oil",
     "asparagus", "mushroom", "celery", "beet", "corn", "pea",
@@ -353,6 +474,31 @@ _INGREDIENT_ROOTS: list[str] = [
 # We exclude these so "Grilled Chicken Breast" or "Spinach Salad No Dressing"
 # don't appear on a shopping list.
 _PREPARED_DATA_TYPES = {"survey_fndds_food", "sub_sample_food"}
+
+# Strips leading quantity + unit from a meal-plan ingredient string so the
+# ingredient name can be matched against USDA.
+# e.g. "1/2 cup rolled oats" → "rolled oats"
+#      "1 (15 oz) can black beans" → "black beans"
+_QUANTITY_PREFIX_RE = _re.compile(
+    r"^[\d¼½¾⅓⅔⅛⅜⅝⅞\s./–\-]+\s*"        # leading number/fraction
+    r"(?:\([^)]*\)\s*)?"                    # optional parenthetical, e.g. (15 oz)
+    r"(?:cups?|tbsps?|tsps?|tablespoons?|teaspoons?|lbs?|pounds?|ozs?|ounces?|"
+    r"grams?|g\b|kg\b|mls?|liters?|cloves?|slices?|pieces?|heads?|bunches?|"
+    r"cans?|packages?|pkgs?|sprigs?|handfuls?|stalks?|ears?|"
+    r"medium|large|small|whole|fresh|dried)?\s*",
+    _re.I,
+)
+
+# Strips trailing preparation notes from an ingredient string.
+# e.g. "broccoli, cut into florets" → "broccoli"
+#      "Salt and pepper to taste"   → "Salt and pepper"
+_PREP_SUFFIX_RE = _re.compile(
+    r",?\s*(to taste|as needed|for garnish|for serving|if desired|optional"
+    r"|cut into|roughly chopped|finely chopped|thinly sliced|coarsely chopped"
+    r"|diced|minced|sliced|chopped|peeled|halved|quartered|trimmed"
+    r"|divided|separated|room temperature|softened|melted)\b.*$",
+    _re.I,
+)
 
 
 def _root_key(name: str) -> str:
@@ -376,10 +522,16 @@ def extract_ingredients_from_meal_plan(meal_plan_text: str) -> list[dict]:
             obj = json.loads(json_match.group())
             for day in obj.get("days", []):
                 for meal in day.get("meals", []):
+                    # Primary source: per-meal ingredients list (most specific)
+                    for raw_ing in meal.get("ingredients", []):
+                        cleaned = _QUANTITY_PREFIX_RE.sub("", str(raw_ing)).strip()
+                        cleaned = _PREP_SUFFIX_RE.sub("", cleaned).strip().strip(",").strip()
+                        if len(cleaned) > 2:
+                            raw_ingredients.append(cleaned)
+
+                    # Fallback: parse the meal name itself (for plans without ingredients)
                     name = meal.get("name", "")
-                    # Strip meal-type prefix
                     name = re.sub(r'^(breakfast|lunch|dinner|snack)\s*[:–\-]\s*', '', name, flags=re.I)
-                    # Split on common separators: +, &, "with", "and", ","
                     parts = re.split(r'\s*[+&,]\s*|\s+with\s+|\s+and\s+', name, flags=re.I)
                     for part in parts:
                         part = part.strip()
@@ -390,10 +542,17 @@ def extract_ingredients_from_meal_plan(meal_plan_text: str) -> list[dict]:
 
     # Deduplicate by ingredient root — collapses "Spinach Salad", "Baby Spinach",
     # "Spinach Omelette Starter" all down to one "spinach" entry.
+    # Parts with no ingredient root that are clearly prepared dishes are dropped.
     seen_roots: set[str] = set()
     unique: list[str] = []
     for ing in raw_ingredients:
         root = _root_key(ing)
+        # If no root was found and the part contains a prepared-dish term, skip it
+        # (e.g. "Herb Omelet", "Tofu Stir-fry Bowl" with no known ingredient root).
+        if root == ing.lower():
+            words = set(ing.lower().split())
+            if words & _PREPARED_DISH_TERMS:
+                continue
         if root not in seen_roots:
             seen_roots.add(root)
             # Use the root itself as the search term for a cleaner DB match
@@ -410,9 +569,7 @@ def extract_ingredients_from_meal_plan(meal_plan_text: str) -> list[dict]:
     excluded = tuple(_PREPARED_DATA_TYPES)
     for ing in unique:
         # Match whole words only — "salmon" must not match "Salmonberries".
-        # Postgres ILIKE doesn't support word boundaries; use a regex alternative:
-        # description must contain the ingredient as a whole word (surrounded by
-        # start/end, space, comma, or punctuation).
+        # Fetch a few candidates so we can filter out processed products (dip, rings…).
         rows = fetch_all(
             """
             SELECT fdc_id, description, data_type FROM food
@@ -426,16 +583,19 @@ def extract_ingredients_from_meal_plan(meal_plan_text: str) -> list[dict]:
                     ELSE 7
                 END,
                 char_length(description)
-            LIMIT 1
+            LIMIT 5
             """,
-            (rf"(^|[^a-z]){_re.escape(ing)}([^a-z]|$)", excluded, f"{ing}%"),
+            (rf"(^|[^a-z]){_re.escape(ing)}(s|es)?([^a-z]|$)", excluded, f"{ing}%"),
         )
+        # Skip rows whose description looks like a processed product (dip, rings, etc.)
+        rows = [r for r in rows if not _PROCESSED_DESC_RE.search(r["description"])]
         if rows:
             fid = int(rows[0]["fdc_id"])
             if fid not in seen_ids:
                 seen_ids.add(fid)
                 results.append({"fdc_id": fid, "name": _display_name(rows[0]["description"])})
-        else:
+        elif ing not in _PREPARED_DISH_TERMS:
+            # Only add a fallback entry if the term itself isn't a dish
             results.append({"fdc_id": 0, "name": ing.title()})
 
     return results
@@ -456,10 +616,16 @@ def derive_grocery_list(selected_foods: list[dict]) -> dict:
         fid = int(food["fdc_id"])
         name = food["name"]
         category = _categorise(name)
-        # Use category-based package weight for pricing — branded_food.serving_size
-        # is the nutritional serving (e.g. 28 g = 1 oz), not the purchase quantity.
         serving_size_g = _DEFAULT_SERVING_G.get(category, 300.0)
         quantity_needed = _DEFAULT_QTY.get(category, 2)
+
+        # Override serving size for items that are sold in specific retail units
+        # (e.g. garlic = 1 head ≈ 50g, not the 300g Produce default)
+        name_lower = name.lower()
+        for kw, (_, override_g) in _RETAIL_UNIT_OVERRIDES.items():
+            if kw in name_lower:
+                serving_size_g = override_g
+                break
 
         grocery_list.setdefault(category, []).append({
             "name": name,

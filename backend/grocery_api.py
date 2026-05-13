@@ -36,24 +36,46 @@ FALLBACK_PRICE_PER_100G: dict[str, float] = {
     "salmon":     2.20,   # ~$10/lb → $2.20/100g
     "tuna":       1.80,
     "shrimp":     1.80,
+    "haddock":    1.60,
+    "tilapia":    1.32,
     "fish":       1.60,
     "seafood":    1.60,
     "chicken":    0.88,   # ~$4/lb boneless breast
-    "turkey":     1.10,   # ~$5/lb deli turkey breast
+    "turkey":     1.10,
     "poultry":    0.88,
     "beef":       1.76,   # ~$8/lb ground beef
     "pork":       1.10,
     "lamb":       2.20,
     "meat":       1.32,
     # Dairy & eggs
-    "yogurt":     0.44,
+    "yogurt":     0.55,   # ~$3.50 for 32oz container
     "cheese":     1.10,
-    "dairy":      0.44,
-    "egg":        0.22,
-    "milk":       0.11,
-    # Produce
-    "avocado":    0.66,
-    "berry":      1.10,
+    "dairy":      0.55,
+    "egg":        0.75,   # ~$4.50/dozen (600g) → $0.75/100g
+    "milk":       0.13,   # ~$3.50/gallon (3785g)
+    "butter":     1.10,   # ~$5 for 454g (1lb box)
+    "cream":      0.77,
+    # Produce — specific items to avoid all hitting "default"
+    "garlic":     1.80,   # ~$0.89/head (50g) → ~$1.78/100g
+    "spinach":    1.10,   # ~$3.50 for 5oz bag
+    "kale":       0.66,
+    "broccoli":   0.44,   # ~$1.99 per head (~450g)
+    "cauliflower": 0.58,  # ~$3.49 per head
+    "asparagus":  0.80,   # ~$3.99 per bunch (~500g)
+    "avocado":    0.88,   # ~$1.75 per avocado (~200g)
+    "mushroom":   1.10,   # enoki/specialty mushrooms are pricier
+    "zucchini":   0.50,
+    "tomato":     0.66,
+    "cucumber":   0.33,
+    "celery":     0.33,
+    "lettuce":    0.44,
+    "pepper":     0.66,
+    "onion":      0.33,
+    "carrot":     0.33,
+    "berry":      1.32,   # ~$4 for 6oz container
+    "mango":      0.55,
+    "lemon":      0.44,
+    "lime":       0.44,
     "fruit":      0.55,
     "vegetable":  0.44,
     "produce":    0.44,
@@ -68,9 +90,13 @@ FALLBACK_PRICE_PER_100G: dict[str, float] = {
     "bean":       0.33,
     "legume":     0.33,
     "tofu":       0.55,
-    # Other
+    # Nuts, oils & other
     "nut":        1.32,
-    "oil":        0.77,
+    "almond":     1.54,
+    "walnut":     1.32,
+    "peanut":     0.77,
+    "oil":        1.50,   # ~$7.50 for 500ml bottle
+    "olive":      1.50,
     "sauce":      0.55,
     "frozen":     0.60,
     "snack":      0.80,

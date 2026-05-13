@@ -1,0 +1,16 @@
+{
+  "session_id": "4b55e0b9-e3f2-4376-acff-3df2b999bb1f",
+  "transcript_path": "C:\\Users\\jerem\\.claude\\projects\\C--Users-jerem-food-bridge\\4b55e0b9-e3f2-4376-acff-3df2b999bb1f.jsonl",
+  "cwd": "C:\\Users\\jerem\\food-bridge",
+  "permission_mode": "acceptEdits",
+  "effort": {
+    "level": "high"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "PowerShell",
+  "tool_input": {
+    "command": "cd C:\\Users\\jerem\\food-bridge && docker compose logs backend --tail=5 2>&1",
+    "description": "Confirm backend started without errors"
+  },
+  "tool_use_id": "toolu_011ineJUUHcqGr2nt25aiLxZ"
+}

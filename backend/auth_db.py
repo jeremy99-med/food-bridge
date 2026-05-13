@@ -4,6 +4,7 @@ Uses existing db.py helpers.
 """
 from __future__ import annotations
 
+import json
 import db
 
 
@@ -46,14 +47,15 @@ def save_grocery_list(
     user_id: str,
     total: float,
     items_by_category: dict[str, list[dict]],
+    meal_plan_data: dict | None = None,
 ) -> str:
     row = db.execute_returning(
         """
-        INSERT INTO saved_grocery_list (user_id, total_estimated_cost_usd)
-        VALUES (%s, %s)
+        INSERT INTO saved_grocery_list (user_id, total_estimated_cost_usd, meal_plan_json)
+        VALUES (%s, %s, %s)
         RETURNING list_id, saved_at
         """,
-        (user_id, total),
+        (user_id, total, json.dumps(meal_plan_data) if meal_plan_data else None),
     )
     list_id = str(row["list_id"])
 
@@ -106,7 +108,7 @@ def get_grocery_list_history(user_id: str) -> list[dict]:
 def get_grocery_list_detail(list_id: str, user_id: str) -> dict | None:
     header = db.fetch_one(
         """
-        SELECT list_id, total_estimated_cost_usd, saved_at
+        SELECT list_id, total_estimated_cost_usd, saved_at, meal_plan_json
         FROM saved_grocery_list
         WHERE list_id = %s AND user_id = %s
         """,
@@ -131,9 +133,17 @@ def get_grocery_list_detail(list_id: str, user_id: str) -> dict | None:
         cat = item.get("category") or "Other"
         grouped.setdefault(cat, []).append(dict(item))
 
+    meal_plan = header.get("meal_plan_json")
+    if isinstance(meal_plan, str):
+        try:
+            meal_plan = json.loads(meal_plan)
+        except Exception:
+            meal_plan = None
+
     return {
         "list_id": str(header["list_id"]),
         "total_estimated_cost_usd": float(header["total_estimated_cost_usd"] or 0),
         "saved_at": header["saved_at"].isoformat() if header["saved_at"] else None,
         "grocery_list": grouped,
+        "meal_plan": meal_plan,
     }

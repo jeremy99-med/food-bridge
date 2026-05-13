@@ -4,9 +4,15 @@ import { getGroceryHistory, getGroceryListDetail, type SavedListMeta } from "@/l
 import { categoryIcon } from "@/lib/categories";
 import Spinner from "@/components/Spinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import { MealPlanSection } from "@/screens/GroceryList";
+
+interface DetailEntry {
+  grocery_list: Record<string, unknown[]>;
+  meal_plan: Record<string, unknown> | null;
+}
 
 interface DetailCache {
-  [listId: string]: Record<string, unknown[]>;
+  [listId: string]: DetailEntry;
 }
 
 const SavedLists = () => {
@@ -46,7 +52,13 @@ const SavedLists = () => {
     setDetailError(null);
     try {
       const detail = await getGroceryListDetail(listId);
-      setDetailCache((c) => ({ ...c, [listId]: detail.grocery_list as Record<string, unknown[]> }));
+      setDetailCache((c) => ({
+        ...c,
+        [listId]: {
+          grocery_list: detail.grocery_list as Record<string, unknown[]>,
+          meal_plan: detail.meal_plan ?? null,
+        },
+      }));
     } catch (e) {
       setDetailError(e instanceof Error ? e.message : "Failed to load detail");
     } finally {
@@ -81,7 +93,10 @@ const SavedLists = () => {
         {history.map((item) => {
           const isOpen = expandedId === item.list_id;
           const detail = detailCache[item.list_id];
-          const categories = detail ? Object.entries(detail) : [];
+          const categories = detail ? Object.entries(detail.grocery_list) : [];
+          const mealDays = detail?.meal_plan
+            ? ((detail.meal_plan.days ?? detail.meal_plan.plan ?? []) as Parameters<typeof MealPlanSection>[0]["days"])
+            : [];
 
           return (
             <div key={item.list_id} className="border border-foreground rounded-lg overflow-hidden">
@@ -98,33 +113,42 @@ const SavedLists = () => {
               </button>
 
               {isOpen && (
-                <div className="border-t border-foreground px-4 pb-4 pt-3 space-y-4">
+                <div className="border-t border-foreground px-4 pb-4 pt-3 space-y-6">
                   {loadingDetail && !detail && <Spinner message="Loading items…" />}
-                  {categories.map(([cat, items]) => (
-                    <section key={cat} className="space-y-2">
-                      <h3 className="font-semibold text-sm border-b border-foreground pb-1">
-                        {categoryIcon(cat)} {cat}
-                      </h3>
-                      <ul className="space-y-1">
-                        {(items as Record<string, unknown>[]).map((it, i) => {
-                          const name = String(it.name ?? it.description ?? "Item");
-                          const qty = it.quantity_needed != null ? Number(it.quantity_needed) : null;
-                          const price = it.estimated_unit_price_usd != null ? Number(it.estimated_unit_price_usd) : null;
-                          const lineTotal = qty != null && price != null ? qty * price : null;
-                          return (
-                            <li key={i} className="flex items-center justify-between text-sm py-0.5">
-                              <span>{name}</span>
-                              <span className="text-muted-foreground tabular-nums text-xs">
-                                {qty != null && price != null
-                                  ? `x${qty} × $${price.toFixed(2)}${lineTotal != null ? ` = $${lineTotal.toFixed(2)}` : ""}`
-                                  : ""}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </section>
-                  ))}
+
+                  {categories.length > 0 && (
+                    <div className="space-y-4">
+                      {categories.map(([cat, items]) => (
+                        <section key={cat} className="space-y-2">
+                          <h3 className="font-semibold text-sm border-b border-foreground pb-1">
+                            {categoryIcon(cat)} {cat}
+                          </h3>
+                          <ul className="space-y-1">
+                            {(items as Record<string, unknown>[]).map((it, i) => {
+                              const name = String(it.name ?? it.description ?? "Item");
+                              const qty = it.quantity_needed != null ? Number(it.quantity_needed) : null;
+                              const price = it.estimated_unit_price_usd != null ? Number(it.estimated_unit_price_usd) : null;
+                              const lineTotal = qty != null && price != null ? qty * price : null;
+                              return (
+                                <li key={i} className="flex items-center justify-between text-sm py-0.5">
+                                  <span>{name}</span>
+                                  <span className="text-muted-foreground tabular-nums text-xs">
+                                    {qty != null && price != null
+                                      ? `x${qty} × $${price.toFixed(2)}${lineTotal != null ? ` = $${lineTotal.toFixed(2)}` : ""}`
+                                      : ""}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+
+                  {mealDays.length > 0 && (
+                    <MealPlanSection days={mealDays} />
+                  )}
                 </div>
               )}
             </div>
