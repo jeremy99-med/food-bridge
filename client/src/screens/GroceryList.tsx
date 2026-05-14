@@ -311,17 +311,17 @@ const GroceryList = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-8 pb-4 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
         <p className="fb-section-title">Step 5 of 5</p>
-        <div className="mt-2 flex items-start justify-between gap-4">
-          <h1 className="text-3xl font-bold">Your Grocery List</h1>
-          <p className="text-2xl font-extrabold tabular-nums">${total.toFixed(2)}</p>
+        <div className="mt-1 flex items-start justify-between gap-4">
+          <h1 className="text-[2.6rem] fb-display leading-none">Your Grocery List</h1>
+          <p className="text-2xl font-extrabold tabular-nums text-[#0f4c2b]">${total.toFixed(2)}</p>
         </div>
 
         {budget > 0 && (
-          <div className="mt-5 space-y-2">
+          <div className="mt-4 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Budget ${budget.toFixed(0)}</span>
+              <span className="text-[#4d7560]">Budget ${budget.toFixed(0)}</span>
               <span className="font-bold">
                 {within
                   ? "Within budget ✓"
@@ -329,22 +329,22 @@ const GroceryList = () => {
                   ? <>Slightly over (~${(total - budget).toFixed(0)} over){" "}
                       <span
                         title="Up to $10 over budget — all planned meals are included. Spices are not counted toward this total."
-                        className="cursor-help text-muted-foreground"
+                        className="cursor-help text-[#4d7560]"
                       >ⓘ</span></>
                   : "Over budget ✗"}
               </span>
             </div>
-            <div className="h-2 bg-surface-2">
+            <div className="h-2 bg-[#daeade] rounded-full overflow-hidden">
               <div
-                className={`h-full ${overBudget ? "bg-foreground" : slightlyOver ? "opacity-60 bg-foreground" : "bg-foreground"}`}
-                style={{ width: `${pct}%` }}
+                className={`h-full rounded-full ${overBudget ? "bg-[#c0392b]" : slightlyOver ? "bg-[#c9820a]" : "bg-[#0f4c2b]"}`}
+                style={{ width: `${pct}%`, transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)" }}
               />
             </div>
           </div>
         )}
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 pt-4 space-y-8">
+      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-24 pt-3 space-y-6">
         {saveError && <ErrorAlert message={saveError} onDismiss={() => setSaveError(null)} />}
 
         {parsed.budgetAdjusted && (
@@ -358,16 +358,19 @@ const GroceryList = () => {
         )}
 
         {spiceGroups.length > 0 && spiceGroups.map(([, items]) => (
-          <section key="Spices & Pantry" className="space-y-3">
-            <div className="flex items-baseline justify-between border-b border-foreground pb-2">
-              <h2 className="font-bold text-lg">🌿 Spices & Pantry</h2>
-              <span className="text-xs text-muted-foreground tabular-nums italic">not included in budget</span>
+          <section key="Spices & Pantry" className="space-y-2.5">
+            <div className="flex items-baseline justify-between border-b border-[#daeade] pb-2">
+              <h2 className="font-extrabold text-sm tracking-[-0.01em] text-[#111a14]">🌿 Spices & Pantry</h2>
+              <span className="text-[11px] text-[#4d7560] tabular-nums italic">not included in budget</span>
             </div>
-            <p className="text-xs text-muted-foreground -mt-1">Check your pantry — you may already have these.</p>
-            <ul className="divide-y divide-surface-2">
+            <p className="text-[11px] text-[#4d7560]">Check your pantry — you may already have these.</p>
+            <ul className="space-y-2">
               {items.map((it, i) => (
-                <li key={i} className="py-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">{it.name}</span>
+                <li key={i} className="fb-grocery-card">
+                  <div className="w-11 h-11 shrink-0 rounded-lg bg-[#edf5f0] flex items-center justify-center text-lg">
+                    🌿
+                  </div>
+                  <p className="font-semibold text-sm leading-snug text-[#111a14] flex-1">{it.name}</p>
                 </li>
               ))}
             </ul>
@@ -375,38 +378,43 @@ const GroceryList = () => {
         ))}
 
         {mainGroups.map(([cat, items]) => (
-          <section key={cat} className="space-y-3">
-            <div className="flex items-baseline justify-between border-b border-foreground pb-2">
-              <h2 className="font-bold text-lg">{categoryIcon(cat)} {cat}</h2>
-              <span className="text-xs text-muted-foreground tabular-nums">{items.length} item{items.length === 1 ? "" : "s"}</span>
+          <section key={cat} className="space-y-2.5">
+            <div className="flex items-baseline justify-between border-b border-[#daeade] pb-2">
+              <h2 className="font-extrabold text-sm tracking-[-0.01em] text-[#111a14]">{categoryIcon(cat)} {cat}</h2>
+              <span className="text-[11px] text-[#4d7560] tabular-nums">{items.length} item{items.length === 1 ? "" : "s"}</span>
             </div>
-            <ul className="divide-y divide-surface-2">
+            <ul className="space-y-2">
               {items.map((it, i) => (
-                <li key={i} className="py-3 flex items-start gap-3">
-                  <div className="w-14 h-14 shrink-0 bg-surface-2 overflow-hidden flex items-center justify-center text-2xl">
+                <li key={i} className="fb-grocery-card">
+                  <div className="w-11 h-11 shrink-0 rounded-lg overflow-hidden bg-[#edf5f0]
+                                  flex items-center justify-center text-lg
+                                  shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]">
                     {it.image_url
                       ? <img src={it.image_url} alt={it.name} className="w-full h-full object-cover" />
-                      : categoryIcon(it.category ?? "Other")
+                      : <span>{categoryIcon(it.category ?? "Other")}</span>
                     }
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm">{it.name}</p>
-                    {it.brand && <p className="text-xs text-muted-foreground">{it.brand}</p>}
-                    <div className="mt-1 flex items-center gap-2">
+                    <p className="font-semibold text-sm leading-snug text-[#111a14]">{it.name}</p>
+                    {it.brand && <p className="text-[11px] text-[#4d7560] mt-0.5">{it.brand}</p>}
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
                       {it.quantity != null && typeof it.price === "number" && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-[11px] text-[#4d7560] tabular-nums">
                           x{it.quantity} × ${it.price.toFixed(2)}
                         </span>
                       )}
                       {it.source && (
-                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 ${it.source === "live" ? "bg-foreground text-background" : "bg-surface-2 text-foreground"}`}>
-                          {it.source === "live" ? "live price" : "estimate"}
+                        <span className={`text-[9px] font-bold uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-full
+                          ${it.source === "live"
+                            ? "bg-[#0f4c2b] text-white"
+                            : "bg-[#edf5f0] text-[#4d7560]"}`}>
+                          {it.source === "live" ? "live" : "est."}
                         </span>
                       )}
                     </div>
                   </div>
                   {typeof it.price === "number" && (
-                    <span className="text-sm font-semibold tabular-nums shrink-0 pt-0.5">
+                    <span className="text-sm font-bold tabular-nums shrink-0 text-[#0f4c2b] pt-0.5">
                       ${((it.quantity ?? 1) * it.price).toFixed(2)}
                     </span>
                   )}
@@ -419,8 +427,8 @@ const GroceryList = () => {
         <MealPlanSection days={mealDays} />
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
-        <div className="max-w-xl mx-auto px-5 py-4 flex items-center gap-3">
+      <footer className="fb-footer">
+        <div className="max-w-xl mx-auto px-5 py-3 flex items-center gap-3">
           <button type="button" onClick={() => setScreen(4)} className="fb-btn-outline">Back</button>
           {authUser ? (
             <button

@@ -3,22 +3,26 @@ interface Props {
   total: number;
 }
 
-const ProgressBar = ({ current, total }: Props) => {
-  const pct = Math.min(100, Math.max(0, (current / total) * 100));
-  return (
-    <div className="w-full">
-      <div className="h-1 w-full bg-surface-2">
+const ProgressBar = ({ current, total }: Props) => (
+  <div className="w-full space-y-2.5">
+    <div className="flex gap-1.5">
+      {Array.from({ length: total }).map((_, i) => (
         <div
-          className="h-full bg-foreground transition-[width] duration-300"
-          style={{ width: `${pct}%` }}
+          key={i}
+          className="h-[3px] flex-1 rounded-full transition-all duration-[400ms] ease-out"
+          style={{
+            background: i < current ? 'var(--color-foreground)' : 'var(--color-surface-2)',
+            opacity: i === current - 1 ? 1 : i < current ? 0.55 : 1,
+            transform: i === current - 1 ? 'scaleY(1.4)' : 'scaleY(1)',
+            transformOrigin: 'bottom',
+          }}
         />
-      </div>
-      <div className="mt-2 flex justify-between text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-        <span>Step {current} of {total}</span>
-        <span>{Math.round(pct)}%</span>
-      </div>
+      ))}
     </div>
-  );
-};
+    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+      Step {current} of {total}
+    </p>
+  </div>
+);
 
 export default ProgressBar;

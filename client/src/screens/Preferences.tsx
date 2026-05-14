@@ -57,13 +57,13 @@ const Preferences = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-8 pb-4 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
         <p className="fb-section-title">Step 2 of 5</p>
-        <h1 className="text-3xl font-bold mt-2">Preferences</h1>
-        <p className="text-sm text-muted-foreground mt-1">Budget, location, and what you like to eat.</p>
+        <h1 className="text-[2.5rem] fb-display leading-none mt-1">Preferences</h1>
+        <p className="text-sm text-[#4d7560] mt-1">Budget, location, and what you like to eat.</p>
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 space-y-8">
+      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-24 space-y-6">
         {error && <ErrorAlert message={error} onDismiss={() => setError(null)} />}
 
         <Section title="💰 Budget & location">
@@ -118,17 +118,17 @@ const Preferences = () => {
 
         <Section title="WIC eligibility">
           <button type="button" onClick={() => setPreferences({ wic: !preferences.wic })}
-            className="w-full h-14 border-2 border-foreground rounded-lg flex items-center justify-between px-4">
+            className="w-full h-14 border-2 border-foreground rounded-lg flex items-center justify-between px-4 hover:bg-surface transition-colors duration-150">
             <span className="text-sm text-left">Pregnant, infant, or child in household?</span>
-            <span className={`w-12 h-7 border-2 border-foreground rounded-full relative transition-colors ${preferences.wic ? "bg-foreground" : "bg-white"}`}>
-              <span className={`absolute top-0.5 ${preferences.wic ? "right-0.5 bg-white" : "left-0.5 bg-foreground"} w-5 h-5 rounded-full transition-all`} />
+            <span className={`w-12 h-7 border-2 border-foreground rounded-full relative transition-colors duration-200 ${preferences.wic ? "bg-foreground" : "bg-white"}`}>
+              <span className={`absolute top-0.5 ${preferences.wic ? "right-0.5 bg-white" : "left-0.5 bg-foreground"} w-5 h-5 rounded-full transition-all duration-200 [transition-timing-function:cubic-bezier(0.4,0,0.2,1)]`} />
             </span>
           </button>
         </Section>
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
-        <div className="max-w-xl mx-auto px-5 py-4 flex items-center gap-3">
+      <footer className="fb-footer">
+        <div className="max-w-xl mx-auto px-5 py-3 flex items-center gap-3">
           <button type="button" onClick={() => setScreen(1)} className="fb-btn-outline">Back</button>
           <button onClick={submit} className="fb-btn flex-1">Continue</button>
         </div>

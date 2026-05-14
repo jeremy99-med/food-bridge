@@ -75,12 +75,12 @@ const SavedLists = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-8 pb-4 max-w-xl mx-auto w-full">
-        <h1 className="text-3xl font-bold">Saved Lists</h1>
-        <p className="text-sm text-muted-foreground mt-1">Your previously saved grocery lists.</p>
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
+        <h1 className="text-[2.5rem] fb-display leading-none mt-1">Saved Lists</h1>
+        <p className="text-sm text-[#4d7560] mt-1">Your previously saved grocery lists.</p>
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 space-y-3">
+      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-24 space-y-3">
         {historyError && <ErrorAlert message={historyError} onDismiss={() => setHistoryError(null)} />}
         {detailError && <ErrorAlert message={detailError} onDismiss={() => setDetailError(null)} />}
 
@@ -99,28 +99,28 @@ const SavedLists = () => {
             : [];
 
           return (
-            <div key={item.list_id} className="border border-foreground rounded-lg overflow-hidden">
+            <div key={item.list_id} className="fb-card overflow-hidden">
               <button
                 type="button"
                 onClick={() => toggleExpand(item.list_id)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-2 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#edf5f0] transition-colors"
               >
                 <div>
-                  <p className="font-semibold text-sm">{formatDate(item.saved_at)}</p>
-                  <p className="text-xs text-muted-foreground">${item.total_estimated_cost_usd.toFixed(2)} estimated total</p>
+                  <p className="font-semibold text-sm text-[#111a14]">{formatDate(item.saved_at)}</p>
+                  <p className="text-[11px] text-[#4d7560]">${item.total_estimated_cost_usd.toFixed(2)} estimated total</p>
                 </div>
-                <span className={`text-sm transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                <span className={`text-sm text-[#4d7560] transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
               </button>
 
               {isOpen && (
-                <div className="border-t border-foreground px-4 pb-4 pt-3 space-y-6">
+                <div className="border-t border-[#daeade] px-4 pb-4 pt-3 space-y-5">
                   {loadingDetail && !detail && <Spinner message="Loading items…" />}
 
                   {categories.length > 0 && (
                     <div className="space-y-4">
                       {categories.map(([cat, items]) => (
                         <section key={cat} className="space-y-2">
-                          <h3 className="font-semibold text-sm border-b border-foreground pb-1">
+                          <h3 className="font-extrabold text-xs uppercase tracking-[0.12em] text-[#4d7560] border-b border-[#daeade] pb-1.5">
                             {categoryIcon(cat)} {cat}
                           </h3>
                           <ul className="space-y-1">
@@ -131,8 +131,8 @@ const SavedLists = () => {
                               const lineTotal = qty != null && price != null ? qty * price : null;
                               return (
                                 <li key={i} className="flex items-center justify-between text-sm py-0.5">
-                                  <span>{name}</span>
-                                  <span className="text-muted-foreground tabular-nums text-xs">
+                                  <span className="text-[#111a14]">{name}</span>
+                                  <span className="text-[#4d7560] tabular-nums text-[11px]">
                                     {qty != null && price != null
                                       ? `x${qty} × $${price.toFixed(2)}${lineTotal != null ? ` = $${lineTotal.toFixed(2)}` : ""}`
                                       : ""}
@@ -156,8 +156,8 @@ const SavedLists = () => {
         })}
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
-        <div className="max-w-xl mx-auto px-5 py-4 flex items-center gap-3">
+      <footer className="fb-footer">
+        <div className="max-w-xl mx-auto px-5 py-3 flex items-center gap-3">
           <button type="button" onClick={() => setScreen(5)} className="fb-btn-outline">Back</button>
           <button type="button" onClick={() => { reset(); setScreen(1); }} className="fb-btn flex-1">Start Over</button>
         </div>

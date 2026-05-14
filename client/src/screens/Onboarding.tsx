@@ -175,17 +175,18 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-6 pb-4 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-4 pb-3 max-w-xl mx-auto w-full">
         <ProgressBar current={step} total={STEPS} />
       </header>
 
-      <main className="flex-1 px-5 max-w-xl mx-auto w-full pb-32">
+      <main className="flex-1 px-5 max-w-xl mx-auto w-full pb-24">
         {error && <div className="mb-4"><ErrorAlert message={error} onDismiss={() => setError(null)} /></div>}
 
+        <div key={step} className="fb-step-fade">
         {/* Step 1 — Measurements */}
         {step === 1 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">📏 About you</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">📏 About you</h1>
             <p className="text-sm text-muted-foreground -mt-4">Basic measurements help us personalize your nutrition.</p>
 
             {/* Unit system toggle */}
@@ -315,8 +316,8 @@ const Onboarding = () => {
 
         {/* Step 2 — Activity */}
         {step === 2 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">🏃 Activity level</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">🏃 Activity level</h1>
             <p className="text-sm text-muted-foreground -mt-4">How active are you on a typical week?</p>
             <div className="flex flex-col gap-2">
               {ACTIVITY.map((a) => (
@@ -333,16 +334,24 @@ const Onboarding = () => {
         {/* Step 3 — Goals */}
         {step === 3 && (
           <section className="space-y-4">
-            <h1 className="text-3xl font-bold">🎯 Health goals</h1>
+            <h1 className="text-[2.2rem] fb-display">🎯 Health goals</h1>
             <p className="text-sm text-muted-foreground">Select one goal.</p>
-            <PillGroup options={GOALS} selected={profile.goals} onChange={(v) => setProfile({ goals: v })} multi={false} />
+            <div className="flex flex-col gap-2">
+              {GOALS.map((g) => (
+                <button key={g} type="button" onClick={() => setProfile({ goals: [g] })}
+                  className={`h-12 border-2 border-foreground rounded-lg text-sm font-medium px-4 text-left transition-colors
+                    ${profile.goals.includes(g) ? "bg-foreground text-white" : "bg-white text-foreground"}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
           </section>
         )}
 
         {/* Step 4 — Conditions */}
         {step === 4 && (
           <section className="space-y-4">
-            <h1 className="text-3xl font-bold">🩺 Health conditions</h1>
+            <h1 className="text-[2.2rem] fb-display">🩺 Health conditions</h1>
             <p className="text-sm text-muted-foreground">Select all that apply. Selecting "None" will clear all others.</p>
             <PillGroup options={CONDITIONS} selected={profile.conditions} onChange={handleConditionChange} />
           </section>
@@ -350,8 +359,8 @@ const Onboarding = () => {
 
         {/* Step 5 — Lifestyle + Medications */}
         {step === 5 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">🌿 Lifestyle</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">🌿 Lifestyle</h1>
             <Field label="Smoking status">
               <div className="grid grid-cols-3 border-2 border-foreground h-12 rounded-lg overflow-hidden">
                 {SMOKING.map((s) => (
@@ -364,7 +373,7 @@ const Onboarding = () => {
             </Field>
 
             <div className="space-y-3">
-              <span className="fb-section-title block">💊 Medications <span className="text-muted-foreground normal-case font-normal">(optional)</span></span>
+              <span className="fb-section-title block">Medications <span className="text-muted-foreground normal-case font-normal">(optional)</span></span>
               {profile.medications.length > 0 && (
                 <p className="text-xs text-muted-foreground">Selected: {profile.medications.join(", ")}</p>
               )}
@@ -372,7 +381,7 @@ const Onboarding = () => {
                 {Object.entries(MEDICATION_CATEGORIES).map(([category, meds]) => (
                   <div key={category} className="space-y-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{category}</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 justify-center">
                       {meds.map((med) => (
                         <button key={med} type="button"
                           className="fb-pill"
@@ -391,8 +400,8 @@ const Onboarding = () => {
 
         {/* Step 6 — Household */}
         {step === 6 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">🏠 Household</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">🏠 Household</h1>
             <p className="text-sm text-muted-foreground -mt-4">Who are we planning meals for?</p>
             <div className="space-y-3">
               <Stepper label="Adults" value={profile.adults} onChange={(n) => setProfile({ adults: n })} min={1} max={20} />
@@ -400,10 +409,11 @@ const Onboarding = () => {
             </div>
           </section>
         )}
+        </div>
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
-        <div className="max-w-xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
+      <footer className="fb-footer">
+        <div className="max-w-xl mx-auto px-5 py-3 flex items-center justify-between gap-3">
           <button type="button" onClick={back} disabled={step === 1} className="fb-btn-outline">Back</button>
           {step < STEPS ? (
             <button type="button" onClick={next} disabled={!canContinue} className="fb-btn flex-1">Continue</button>

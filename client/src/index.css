@@ -1,44 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;0,900;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  /* Emerald palette — kept from original client */
-  --color-background: hsl(150 30% 98%);
-  --color-foreground: hsl(158 84% 34%);        /* emerald primary as "foreground" */
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(160 20% 10%);
-  --color-primary: hsl(158 84% 34%);
-  --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(150 40% 92%);
-  --color-secondary-foreground: hsl(158 60% 20%);
-  --color-muted: hsl(150 20% 94%);
-  --color-muted-foreground: hsl(158 12% 44%);
-  --color-accent: hsl(38 92% 50%);
-  --color-accent-foreground: hsl(0 0% 100%);
+  --color-background: #f7faf8;
+  --color-foreground: #0f4c2b;
+  --color-forest: #0a3420;
+  --color-card: #ffffff;
+  --color-card-foreground: #111a14;
+  --color-primary: #0f4c2b;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #edf5f0;
+  --color-secondary-foreground: #0f4c2b;
+  --color-muted: #edf5f0;
+  --color-muted-foreground: #4d7560;
+  --color-accent: #c9820a;
+  --color-accent-foreground: #ffffff;
+  --color-gold: #c9820a;
+  --color-gold-light: #fdf3dc;
   --color-destructive: hsl(0 84% 60%);
   --color-destructive-foreground: hsl(0 0% 98%);
-  --color-border: hsl(150 20% 88%);
-  --color-input: hsl(150 20% 88%);
-  --color-ring: hsl(158 84% 34%);
-  --color-surface: hsl(150 40% 96%);
-  --color-surface-2: hsl(150 40% 90%);
+  --color-border: #daeade;
+  --color-input: #daeade;
+  --color-ring: #0f4c2b;
+  --color-surface: #edf5f0;
+  --color-surface-2: #daeade;
   --radius: 0.625rem;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 html, body, #root {
-  background: linear-gradient(135deg, hsl(150 60% 97%) 0%, hsl(38 100% 98%) 100%);
+  background: #f7faf8;
   min-height: 100vh;
-  color: hsl(160 20% 10%);
+  color: #111a14;
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Remove native number input spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 h1, h2, h3, h4 {
   letter-spacing: -0.02em;
 }
 
-/* ── FoodBridge component classes (emerald-themed) ── */
+/* Editorial serif display */
+.fb-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.fb-display-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+/* Small caps section labels */
+.fb-label-caps {
+  font-size: 0.63rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-muted-foreground);
+}
+
+/* Amber badge */
+.fb-badge-gold {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--color-gold);
+  color: white;
+  border-radius: 999px;
+}
+
+/* ── FoodBridge component classes ── */
 
 .fb-pill {
   display: inline-flex;
@@ -51,12 +105,24 @@ h1, h2, h3, h4 {
   color: var(--color-foreground);
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, background;
   border-radius: 999px;
+}
+.fb-pill:hover:not([data-active="true"]) {
+  background: var(--color-surface);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15, 76, 43, 0.12);
 }
 .fb-pill[data-active="true"] {
   background: var(--color-foreground);
   color: white;
+  box-shadow: 0 2px 12px rgba(15, 76, 43, 0.30);
+  transform: translateY(-1px);
+}
+.fb-pill:active {
+  transform: scale(0.96);
+  transition-duration: 0.08s;
 }
 
 .fb-btn {
@@ -72,12 +138,32 @@ h1, h2, h3, h4 {
   font-weight: 500;
   border: 1.5px solid var(--color-foreground);
   border-radius: 0.5rem;
-  transition: opacity 0.15s;
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.15s;
+  will-change: transform;
   cursor: pointer;
+}
+.fb-btn:not(:disabled):hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(15, 76, 43, 0.38), 0 2px 8px rgba(15, 76, 43, 0.18);
+  background: var(--color-forest);
+  border-color: var(--color-forest);
+}
+.fb-btn:not(:disabled):active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 6px rgba(15, 76, 43, 0.22);
+  transition-duration: 0.06s;
 }
 .fb-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+.fb-btn:focus-visible {
+  outline: 2.5px solid var(--color-gold);
+  outline-offset: 2px;
 }
 
 .fb-btn-outline {
@@ -93,12 +179,31 @@ h1, h2, h3, h4 {
   font-weight: 500;
   border: 1.5px solid var(--color-foreground);
   border-radius: 0.5rem;
-  transition: background 0.15s;
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.15s,
+              border-color 0.15s;
+  will-change: transform;
   cursor: pointer;
+}
+.fb-btn-outline:not(:disabled):hover {
+  background: var(--color-surface);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(15, 76, 43, 0.16), 0 1px 4px rgba(15, 76, 43, 0.10);
+  border-color: var(--color-forest);
+}
+.fb-btn-outline:not(:disabled):active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: none;
+  transition-duration: 0.06s;
 }
 .fb-btn-outline:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+.fb-btn-outline:focus-visible {
+  outline: 2.5px solid var(--color-gold);
+  outline-offset: 2px;
 }
 
 .fb-input {
@@ -106,15 +211,17 @@ h1, h2, h3, h4 {
   height: 3rem;
   padding: 0 1rem;
   background: white;
-  color: hsl(160 20% 10%);
+  color: #111a14;
   border: 1.5px solid var(--color-border);
   border-radius: 0.5rem;
   font-size: 0.875rem;
+  font-family: var(--font-body);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .fb-input:focus {
   border-color: var(--color-foreground);
+  box-shadow: 0 0 0 3px rgba(15, 76, 43, 0.14);
 }
 .fb-input::placeholder {
   color: var(--color-muted-foreground);
@@ -123,7 +230,45 @@ h1, h2, h3, h4 {
 .fb-card {
   background: white;
   border: 1.5px solid var(--color-border);
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 4px rgba(15, 76, 43, 0.06);
+}
+
+/* Editorial meal card */
+.fb-meal-card {
+  background: white;
+  border-radius: 1rem;
+  padding: 1rem 1.125rem 0.875rem;
+  box-shadow: 0 2px 12px rgba(15, 76, 43, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1.5px solid var(--color-border);
+  transition: box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+.fb-meal-card:hover {
+  box-shadow: 0 6px 24px rgba(15, 76, 43, 0.13), 0 2px 6px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+.fb-meal-card[data-swapped="true"] {
+  border-color: var(--color-foreground);
+  box-shadow: 0 0 0 2px var(--color-foreground), 0 4px 16px rgba(15, 76, 43, 0.18);
+}
+
+/* Grocery item card */
+.fb-grocery-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: white;
   border-radius: 0.75rem;
+  border: 1.5px solid var(--color-border);
+  box-shadow: 0 1px 4px rgba(15, 76, 43, 0.05);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.fb-grocery-card:hover {
+  border-color: #b5d4bc;
+  box-shadow: 0 3px 12px rgba(15, 76, 43, 0.10);
 }
 
 .fb-section-title {
@@ -147,7 +292,7 @@ h1, h2, h3, h4 {
   animation: fb-spin 0.8s linear infinite;
 }
 
-/* Meal plan loading screen */
+/* Meal plan / grocery loading screen keyframes */
 @keyframes mp-ring-expand {
   0%   { transform: scale(0.7); opacity: 0.8; }
   100% { transform: scale(2.6); opacity: 0;   }
@@ -163,4 +308,44 @@ h1, h2, h3, h4 {
 @keyframes mp-shimmer {
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
+}
+
+/* ── Frosted glass footer ── */
+.fb-footer {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: rgba(247, 250, 248, 0.92);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-top: 1px solid rgba(15, 76, 43, 0.12);
+}
+
+/* ── Screen-to-screen page transition (slide-up fade) ── */
+@keyframes fb-page-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+.fb-page-enter {
+  animation: fb-page-in 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* ── PowerPoint-style form step fade (pure crossfade) ── */
+@keyframes fb-step-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fb-step-fade {
+  animation: fb-step-fade 0.22s ease both;
+}
+
+/* ── Slide-up entrance (kept for backward compat) ── */
+@keyframes fb-slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.fb-slide-up {
+  animation: fb-slide-up 0.28s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
