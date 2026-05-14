@@ -8,11 +8,14 @@ import GroceryList from "@/screens/GroceryList";
 import Login from "@/screens/Login";
 import Signup from "@/screens/Signup";
 import SavedLists from "@/screens/SavedLists";
+import { useDarkMode } from "@/hooks/useDarkMode";
+import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const SCREEN_LABELS = ["Health Profile", "Preferences", "Find Foods", "Meal Plan", "Grocery List"];
 
 export default function Home() {
   const { screen, setScreen, setReturnScreen, authUser, logout } = useApp();
+  const [dark, setDark] = useDarkMode();
 
   const handleSignIn = () => {
     setReturnScreen(screen);
@@ -26,40 +29,46 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <span className="text-xl">🌿</span>
             <span
-              className="text-[1.1rem] font-extrabold tracking-[-0.04em] text-[#0f4c2b]"
-              style={{ fontFamily: "'Playfair Display', serif" }}
+              className="text-[1.1rem] font-extrabold tracking-[-0.04em]"
+              style={{ fontFamily: "'Playfair Display', serif", color: 'var(--color-foreground)' }}
             >
               FoodBridge
             </span>
           </div>
 
-          {authUser ? (
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-[#4d7560] hidden sm:block">{authUser.username}</span>
+          <div className="flex items-center gap-3">
+            {authUser ? (
+              <>
+                <span className="text-[11px] hidden sm:block" style={{ color: 'var(--color-muted-foreground)' }}>{authUser.username}</span>
+                <button
+                  type="button"
+                  onClick={() => setScreen(8)}
+                  className="text-[11px] font-medium underline underline-offset-2"
+                  style={{ color: 'var(--color-foreground)' }}
+                >
+                  Saved
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="text-[11px] font-medium underline underline-offset-2"
+                  style={{ color: 'var(--color-muted-foreground)' }}
+                >
+                  Log out
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={() => setScreen(8)}
-                className="text-[11px] font-medium text-[#0f4c2b] underline underline-offset-2"
+                onClick={handleSignIn}
+                className="text-[11px] font-medium underline underline-offset-2"
+                style={{ color: 'var(--color-foreground)' }}
               >
-                Saved
+                Sign in
               </button>
-              <button
-                type="button"
-                onClick={logout}
-                className="text-[11px] font-medium text-[#4d7560] underline underline-offset-2"
-              >
-                Log out
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSignIn}
-              className="text-[11px] font-medium text-[#0f4c2b] underline underline-offset-2"
-            >
-              Sign in
-            </button>
-          )}
+            )}
+            <DarkModeToggle dark={dark} onToggle={() => setDark(!dark)} />
+          </div>
         </div>
 
         {screen <= 5 && (
@@ -74,7 +83,7 @@ export default function Home() {
                       <div
                         className="h-[3px] rounded-full transition-all duration-500"
                         style={{
-                          background: done ? "#0f4c2b" : active ? "#c9820a" : "#daeade",
+                          background: done ? "var(--color-foreground)" : active ? "var(--color-gold)" : "var(--color-track)",
                           transform: active ? "scaleY(1.6)" : "scaleY(1)",
                           transformOrigin: "bottom",
                         }}

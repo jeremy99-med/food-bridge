@@ -3,9 +3,10 @@ interface Props {
   selected: string[];
   onChange: (next: string[]) => void;
   multi?: boolean;
+  center?: boolean;
 }
 
-const PillGroup = ({ options, selected, onChange, multi = true }: Props) => {
+const PillGroup = ({ options, selected, onChange, multi = true, center = false }: Props) => {
   const toggle = (opt: string) => {
     if (multi) {
       onChange(selected.includes(opt) ? selected.filter((o) => o !== opt) : [...selected, opt]);
@@ -14,7 +15,7 @@ const PillGroup = ({ options, selected, onChange, multi = true }: Props) => {
     }
   };
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={`flex flex-wrap gap-2${center ? ' justify-center' : ''}`}>
       {options.map((o) => (
         <button
           key={o}

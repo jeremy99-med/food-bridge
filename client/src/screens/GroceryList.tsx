@@ -311,7 +311,7 @@ const GroceryList = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
         <p className="fb-section-title">Step 5 of 5</p>
         <div className="mt-1 flex items-start justify-between gap-4">
           <h1 className="text-[2.6rem] fb-display leading-none">Your Grocery List</h1>

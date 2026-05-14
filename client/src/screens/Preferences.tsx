@@ -57,7 +57,7 @@ const Preferences = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{background : 'var(--color-background)'}}>
         <p className="fb-section-title">Step 2 of 5</p>
         <h1 className="text-[2.5rem] fb-display leading-none mt-1">Preferences</h1>
         <p className="text-sm text-[#4d7560] mt-1">Budget, location, and what you like to eat.</p>
@@ -105,15 +105,15 @@ const Preferences = () => {
         </Section>
 
         <Section title="🥗 Dietary preferences">
-          <PillGroup options={DIETS} selected={preferences.diet} onChange={(v) => setPreferences({ diet: v })} />
+          <PillGroup center options={DIETS} selected={preferences.diet} onChange={(v) => setPreferences({ diet: v })} />
         </Section>
 
         <Section title="⚠️ Allergies">
-          <PillGroup options={ALLERGIES} selected={preferences.allergies} onChange={(v) => setPreferences({ allergies: v })} />
+          <PillGroup center options={ALLERGIES} selected={preferences.allergies} onChange={(v) => setPreferences({ allergies: v })} />
         </Section>
 
         <Section title="🌍 Cuisine preferences">
-          <PillGroup options={CUISINES} selected={preferences.cuisines} onChange={(v) => setPreferences({ cuisines: v })} />
+          <PillGroup center options={CUISINES} selected={preferences.cuisines} onChange={(v) => setPreferences({ cuisines: v })} />
         </Section>
 
         <Section title="WIC eligibility">

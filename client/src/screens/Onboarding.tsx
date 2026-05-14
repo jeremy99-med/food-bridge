@@ -175,7 +175,7 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-4 pb-3 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-4 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
         <ProgressBar current={step} total={STEPS} />
       </header>
 

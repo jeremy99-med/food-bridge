@@ -38,7 +38,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
         <h1 className="text-[2.5rem] fb-display leading-none mt-1">Sign in</h1>
         <p className="text-sm text-[#4d7560] mt-2 tracking-wide">Welcome back to FoodBridge.</p>
       </header>

@@ -238,7 +238,7 @@ const MealPlan = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
         <p className="fb-section-title">Step 4 of 5</p>
         <h1 className="text-[2.6rem] fb-display leading-none mt-1">Your 7-Day Plan</h1>
       </header>
