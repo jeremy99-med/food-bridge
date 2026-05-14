@@ -75,9 +75,9 @@ const SavedLists = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
         <h1 className="text-[2.5rem] fb-display leading-none mt-1">Saved Lists</h1>
-        <p className="text-sm text-[#4d7560] mt-1">Your previously saved grocery lists.</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-muted-foreground)' }}>Your previously saved grocery lists.</p>
       </header>
 
       <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-24 space-y-3">
@@ -103,24 +103,24 @@ const SavedLists = () => {
               <button
                 type="button"
                 onClick={() => toggleExpand(item.list_id)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#edf5f0] transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface transition-colors"
               >
                 <div>
-                  <p className="font-semibold text-sm text-[#111a14]">{formatDate(item.saved_at)}</p>
-                  <p className="text-[11px] text-[#4d7560]">${item.total_estimated_cost_usd.toFixed(2)} estimated total</p>
+                  <p className="font-semibold text-sm" style={{ color: 'var(--color-foreground)' }}>{formatDate(item.saved_at)}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-muted-foreground)' }}>${item.total_estimated_cost_usd.toFixed(2)} estimated total</p>
                 </div>
-                <span className={`text-sm text-[#4d7560] transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                <span className={`text-sm transition-transform ${isOpen ? "rotate-180" : ""}`} style={{ color: 'var(--color-muted-foreground)' }}>▾</span>
               </button>
 
               {isOpen && (
-                <div className="border-t border-[#daeade] px-4 pb-4 pt-3 space-y-5">
+                <div className="border-t border-border px-4 pb-4 pt-3 space-y-5">
                   {loadingDetail && !detail && <Spinner message="Loading items…" />}
 
                   {categories.length > 0 && (
                     <div className="space-y-4">
                       {categories.map(([cat, items]) => (
                         <section key={cat} className="space-y-2">
-                          <h3 className="font-extrabold text-xs uppercase tracking-[0.12em] text-[#4d7560] border-b border-[#daeade] pb-1.5">
+                          <h3 className="font-extrabold text-xs uppercase tracking-[0.12em] border-b border-border pb-1.5" style={{ color: 'var(--color-muted-foreground)' }}>
                             {categoryIcon(cat)} {cat}
                           </h3>
                           <ul className="space-y-1">
@@ -131,8 +131,8 @@ const SavedLists = () => {
                               const lineTotal = qty != null && price != null ? qty * price : null;
                               return (
                                 <li key={i} className="flex items-center justify-between text-sm py-0.5">
-                                  <span className="text-[#111a14]">{name}</span>
-                                  <span className="text-[#4d7560] tabular-nums text-[11px]">
+                                  <span style={{ color: 'var(--color-foreground)' }}>{name}</span>
+                                  <span className="tabular-nums text-[11px]" style={{ color: 'var(--color-muted-foreground)' }}>
                                     {qty != null && price != null
                                       ? `x${qty} × $${price.toFixed(2)}${lineTotal != null ? ` = $${lineTotal.toFixed(2)}` : ""}`
                                       : ""}
