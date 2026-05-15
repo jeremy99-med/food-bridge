@@ -10,3 +10,5 @@ langchain-community
 langgraph
 python-jose[cryptography]
 bcrypt==4.0.1
+pytest
+pytest-asyncio

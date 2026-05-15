@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- cob -->
+  <path d="M24 48 C22 40 22 28 28 18 C29 16 35 16 36 18 C42 28 42 40 40 48 Z" fill="#FFD100"/>
+  <!-- kernel grid rows -->
+  <line x1="27" y1="22" x2="27" y2="47" stroke="#E6B800" stroke-width="1.5" opacity="0.6"/>
+  <line x1="31" y1="19" x2="31" y2="48" stroke="#E6B800" stroke-width="1.5" opacity="0.6"/>
+  <line x1="35" y1="19" x2="35" y2="48" stroke="#E6B800" stroke-width="1.5" opacity="0.6"/>
+  <line x1="39" y1="22" x2="39" y2="47" stroke="#E6B800" stroke-width="1.5" opacity="0.6"/>
+  <path d="M25 26 Q33 24 41 26" stroke="#E6B800" stroke-width="1" fill="none" opacity="0.7"/>
+  <path d="M24 32 Q33 30 42 32" stroke="#E6B800" stroke-width="1" fill="none" opacity="0.7"/>
+  <path d="M24 38 Q33 36 42 38" stroke="#E6B800" stroke-width="1" fill="none" opacity="0.7"/>
+  <path d="M24 44 Q33 42 42 44" stroke="#E6B800" stroke-width="1" fill="none" opacity="0.7"/>
+  <!-- husk left -->
+  <path d="M24 48 C20 44 14 36 16 26 C18 20 24 18 28 18 C24 28 24 40 24 48 Z" fill="#6AAA2A"/>
+  <!-- husk right -->
+  <path d="M40 48 C44 44 50 36 48 26 C46 20 40 18 36 18 C40 28 40 40 40 48 Z" fill="#5A9A20"/>
+  <!-- silk at top -->
+  <path d="M28 18 C29 14 32 12 33 10" stroke="#D4A800" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M31 18 C31 14 31 11 31 9" stroke="#D4A800" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M35 18 C35 14 34 11 35 9" stroke="#D4A800" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+</svg>

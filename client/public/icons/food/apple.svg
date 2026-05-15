@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- body: classic two-bump top silhouette -->
+  <path d="M32 16 C30 12,20 10,16 16 C10 24,10 38,14 47 C18 55,24 59,32 59 C40 59,46 55,50 47 C54 38,54 24,48 16 C44 10,34 12,32 16 Z" fill="#E03A3A"/>
+  <!-- stem -->
+  <path d="M32 14 C33 9,37 7,40 6" stroke="#5A4020" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <!-- leaf -->
+  <path d="M36 10 C41 6,47 9,45 15 C43 12,39 10,36 10 Z" fill="#4A8A20"/>
+  <!-- highlight -->
+  <ellipse cx="20" cy="30" rx="4" ry="9" fill="white" opacity="0.2" transform="rotate(-20 20 30)"/>
+</svg>

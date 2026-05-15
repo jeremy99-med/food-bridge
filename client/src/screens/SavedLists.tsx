@@ -4,9 +4,15 @@ import { getGroceryHistory, getGroceryListDetail, type SavedListMeta } from "@/l
 import { categoryIcon } from "@/lib/categories";
 import Spinner from "@/components/Spinner";
 import ErrorAlert from "@/components/ErrorAlert";
+import { MealPlanSection } from "@/screens/GroceryList";
+
+interface DetailEntry {
+  grocery_list: Record<string, unknown[]>;
+  meal_plan: Record<string, unknown> | null;
+}
 
 interface DetailCache {
-  [listId: string]: Record<string, unknown[]>;
+  [listId: string]: DetailEntry;
 }
 
 const SavedLists = () => {
@@ -46,7 +52,13 @@ const SavedLists = () => {
     setDetailError(null);
     try {
       const detail = await getGroceryListDetail(listId);
-      setDetailCache((c) => ({ ...c, [listId]: detail.grocery_list as Record<string, unknown[]> }));
+      setDetailCache((c) => ({
+        ...c,
+        [listId]: {
+          grocery_list: detail.grocery_list as Record<string, unknown[]>,
+          meal_plan: detail.meal_plan ?? null,
+        },
+      }));
     } catch (e) {
       setDetailError(e instanceof Error ? e.message : "Failed to load detail");
     } finally {
@@ -63,12 +75,12 @@ const SavedLists = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-8 pb-4 max-w-xl mx-auto w-full">
-        <h1 className="text-3xl font-bold">Saved Lists</h1>
-        <p className="text-sm text-muted-foreground mt-1">Your previously saved grocery lists.</p>
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
+        <h1 className="text-[2.5rem] fb-display leading-none mt-1">Saved Lists</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-muted-foreground)' }}>Your previously saved grocery lists.</p>
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 space-y-3">
+      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-24 space-y-3">
         {historyError && <ErrorAlert message={historyError} onDismiss={() => setHistoryError(null)} />}
         {detailError && <ErrorAlert message={detailError} onDismiss={() => setDetailError(null)} />}
 
@@ -81,50 +93,62 @@ const SavedLists = () => {
         {history.map((item) => {
           const isOpen = expandedId === item.list_id;
           const detail = detailCache[item.list_id];
-          const categories = detail ? Object.entries(detail) : [];
+          const categories = detail ? Object.entries(detail.grocery_list) : [];
+          const mealDays = detail?.meal_plan
+            ? ((detail.meal_plan.days ?? detail.meal_plan.plan ?? []) as Parameters<typeof MealPlanSection>[0]["days"])
+            : [];
 
           return (
-            <div key={item.list_id} className="border border-foreground rounded-lg overflow-hidden">
+            <div key={item.list_id} className="fb-card overflow-hidden">
               <button
                 type="button"
                 onClick={() => toggleExpand(item.list_id)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface-2 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface transition-colors"
               >
                 <div>
-                  <p className="font-semibold text-sm">{formatDate(item.saved_at)}</p>
-                  <p className="text-xs text-muted-foreground">${item.total_estimated_cost_usd.toFixed(2)} estimated total</p>
+                  <p className="font-semibold text-sm" style={{ color: 'var(--color-foreground)' }}>{formatDate(item.saved_at)}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-muted-foreground)' }}>${item.total_estimated_cost_usd.toFixed(2)} estimated total</p>
                 </div>
-                <span className={`text-sm transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
+                <span className={`text-sm transition-transform ${isOpen ? "rotate-180" : ""}`} style={{ color: 'var(--color-muted-foreground)' }}>▾</span>
               </button>
 
               {isOpen && (
-                <div className="border-t border-foreground px-4 pb-4 pt-3 space-y-4">
+                <div className="border-t border-border px-4 pb-4 pt-3 space-y-5">
                   {loadingDetail && !detail && <Spinner message="Loading items…" />}
-                  {categories.map(([cat, items]) => (
-                    <section key={cat} className="space-y-2">
-                      <h3 className="font-semibold text-sm border-b border-foreground pb-1">
-                        {categoryIcon(cat)} {cat}
-                      </h3>
-                      <ul className="space-y-1">
-                        {(items as Record<string, unknown>[]).map((it, i) => {
-                          const name = String(it.name ?? it.description ?? "Item");
-                          const qty = it.quantity_needed != null ? Number(it.quantity_needed) : null;
-                          const price = it.estimated_unit_price_usd != null ? Number(it.estimated_unit_price_usd) : null;
-                          const lineTotal = qty != null && price != null ? qty * price : null;
-                          return (
-                            <li key={i} className="flex items-center justify-between text-sm py-0.5">
-                              <span>{name}</span>
-                              <span className="text-muted-foreground tabular-nums text-xs">
-                                {qty != null && price != null
-                                  ? `x${qty} × $${price.toFixed(2)}${lineTotal != null ? ` = $${lineTotal.toFixed(2)}` : ""}`
-                                  : ""}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </section>
-                  ))}
+
+                  {categories.length > 0 && (
+                    <div className="space-y-4">
+                      {categories.map(([cat, items]) => (
+                        <section key={cat} className="space-y-2">
+                          <h3 className="font-extrabold text-xs uppercase tracking-[0.12em] border-b border-border pb-1.5" style={{ color: 'var(--color-muted-foreground)' }}>
+                            {categoryIcon(cat)} {cat}
+                          </h3>
+                          <ul className="space-y-1">
+                            {(items as Record<string, unknown>[]).map((it, i) => {
+                              const name = String(it.name ?? it.description ?? "Item");
+                              const qty = it.quantity_needed != null ? Number(it.quantity_needed) : null;
+                              const price = it.estimated_unit_price_usd != null ? Number(it.estimated_unit_price_usd) : null;
+                              const lineTotal = qty != null && price != null ? qty * price : null;
+                              return (
+                                <li key={i} className="flex items-center justify-between text-sm py-0.5">
+                                  <span style={{ color: 'var(--color-foreground)' }}>{name}</span>
+                                  <span className="tabular-nums text-[11px]" style={{ color: 'var(--color-muted-foreground)' }}>
+                                    {qty != null && price != null
+                                      ? `x${qty} × $${price.toFixed(2)}${lineTotal != null ? ` = $${lineTotal.toFixed(2)}` : ""}`
+                                      : ""}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+
+                  {mealDays.length > 0 && (
+                    <MealPlanSection days={mealDays} />
+                  )}
                 </div>
               )}
             </div>
@@ -132,8 +156,8 @@ const SavedLists = () => {
         })}
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
-        <div className="max-w-xl mx-auto px-5 py-4 flex items-center gap-3">
+      <footer className="fb-footer">
+        <div className="max-w-xl mx-auto px-5 py-3 flex items-center gap-3">
           <button type="button" onClick={() => setScreen(5)} className="fb-btn-outline">Back</button>
           <button type="button" onClick={() => { reset(); setScreen(1); }} className="fb-btn flex-1">Start Over</button>
         </div>

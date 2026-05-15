@@ -221,6 +221,7 @@ export interface SavedListMeta {
 export async function saveGroceryList(data: {
   total_estimated_cost_usd: number;
   grocery_list: Record<string, unknown[]>;
+  meal_plan_json?: object | null;
 }): Promise<{ list_id: string }> {
   return authedPost("/grocery-list/save", data);
 }
@@ -234,6 +235,7 @@ export async function getGroceryListDetail(listId: string): Promise<{
   total_estimated_cost_usd: number;
   saved_at: string;
   grocery_list: Record<string, unknown[]>;
+  meal_plan: Record<string, unknown> | null;
 }> {
   return authedGet(`/grocery-list/history/${listId}`);
 }

@@ -38,12 +38,12 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-8 pb-4 max-w-xl mx-auto w-full">
-        <h1 className="text-3xl font-bold">Sign in</h1>
-        <p className="text-sm text-muted-foreground mt-1">Welcome back to FoodBridge.</p>
+      <header className="px-5 pt-5 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
+        <h1 className="text-[2.5rem] fb-display leading-none mt-1">Sign in</h1>
+        <p className="text-sm text-[#4d7560] mt-2 tracking-wide">Welcome back to FoodBridge.</p>
       </header>
 
-      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-32 space-y-5">
+      <main className="flex-1 max-w-xl mx-auto w-full px-5 pb-24 space-y-4">
         {error && <ErrorAlert message={error} onDismiss={() => setError(null)} />}
 
         <div className="space-y-1">
@@ -84,7 +84,7 @@ const Login = () => {
         </p>
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
+      <footer className="fb-footer">
         <div className="max-w-xl mx-auto px-5 py-4 flex items-center gap-3">
           <button type="button" onClick={goBack} className="fb-btn-outline">Back</button>
           <button

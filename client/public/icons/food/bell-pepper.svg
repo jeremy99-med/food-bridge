@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Body with three distinct bottom lobes -->
+  <path d="M20 22 C12 28,10 38,12 46 C10 56,16 62,24 62 C28 62,30 58,32 54 C34 58,36 62,40 62 C48 62,54 56,52 46 C54 38,52 28,44 22 Z" fill="#CC3A14"/>
+  <!-- Left side shading -->
+  <path d="M20 22 C12 28,10 38,12 46 C10 54,14 60,22 62 C26 60,28 56,30 52 C26 44,20 32,20 22 Z" fill="#B02A08"/>
+  <!-- Center lobe groove -->
+  <path d="M32 26 C32 38,32 46,32 54" stroke="#A02000" stroke-width="1.5" fill="none" opacity="0.4"/>
+  <!-- Shoulder -->
+  <path d="M20 22 C22 14,28 12,32 12 C36 12,42 14,44 22 Z" fill="#AA2808"/>
+  <!-- Calyx -->
+  <path d="M22 18 C25 10,29 9,32 9 C35 9,39 10,42 18 Z" fill="#2E8020"/>
+  <!-- Stem -->
+  <rect x="30" y="3" width="4" height="8" rx="2" fill="#3A9030"/>
+  <!-- Leaf sprouts -->
+  <path d="M30 8 C24 3,20 6,23 11" stroke="#4AAA30" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M34 8 C40 3,44 6,41 11" stroke="#4AAA30" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Gloss highlight -->
+  <ellipse cx="21" cy="38" rx="3" ry="9" fill="white" opacity="0.15" transform="rotate(-8 21 38)"/>
+</svg>

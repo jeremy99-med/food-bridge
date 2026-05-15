@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- bowl -->
+  <path d="M10 36 Q10 56 32 56 Q54 56 54 36 Z" fill="#E8D8C0"/>
+  <path d="M10 36 Q10 56 32 56 Q54 56 54 36 Z" fill="none" stroke="#C8A880" stroke-width="2"/>
+  <!-- bowl rim -->
+  <ellipse cx="32" cy="36" rx="22" ry="6" fill="#D8C8A8"/>
+  <!-- pasta noodles spiral -->
+  <path d="M32 32 C36 28 42 28 44 32 C46 36 42 40 38 40 C34 40 30 36 30 32 C30 26 36 22 42 24" stroke="#D4A840" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M28 30 C24 26 20 28 20 32 C20 36 24 38 28 36" stroke="#E0B850" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M34 38 C34 42 30 44 28 42" stroke="#D4A840" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

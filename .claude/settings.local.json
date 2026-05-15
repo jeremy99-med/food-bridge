@@ -9,7 +9,11 @@
       "Bash(docker compose restart *)",
       "Bash(docker compose exec *)",
       "PowerShell(docker compose exec *)",
-      "mcp__playwright__browser_console_messages"
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_evaluate",
+      "WebSearch"
     ]
   },
   "hooks": {

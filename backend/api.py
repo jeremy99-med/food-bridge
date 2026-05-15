@@ -17,8 +17,13 @@ import auth_db
 import user
 import planner
 from dependencies import get_current_user
+from grocery_api import _ensure_zip_cache_table
 
 app = FastAPI(title="FoodBridge API", version="0.1.0")
+
+@app.on_event("startup")
+def _startup() -> None:
+    _ensure_zip_cache_table()
 
 app.add_middleware(
     CORSMiddleware,
@@ -158,11 +163,93 @@ class GroceryListRequest(BaseModel):
     meal_plan_text: str | None = None
 
 
-@app.post("/grocery-list")
-async def grocery_list(req: GroceryListRequest):
-    import asyncio
+async def _price_items(
+    grocery_list_data: dict,
+    zip_code: str | None,
+) -> tuple[list[dict], float]:
+    """Price all items; annotate each with _category; return (all_items, budget_total).
+    Spices & Pantry items are priced but excluded from budget_total."""
     from grocery_api import get_grocery_price
 
+    all_items: list[dict] = []
+    for cat, items in grocery_list_data.items():
+        if isinstance(items, list):
+            for it in items:
+                it["_category"] = cat
+                all_items.append(it)
+
+    prices = await asyncio.gather(
+        *[get_grocery_price(it.get("name", ""), float(it.get("serving_size_g", 100)), zip_code)
+          for it in all_items],
+        return_exceptions=True,
+    )
+
+    budget_total = 0.0
+    for item, price_result in zip(all_items, prices):
+        if isinstance(price_result, Exception):
+            item["estimated_unit_price_usd"] = 0.0
+            item["price_source"] = "unavailable"
+        else:
+            qty = max(1, min(int(item.get("quantity_needed", 1)), 10))
+            item["quantity_needed"] = qty
+            item["estimated_unit_price_usd"] = price_result["estimated_price_usd"]
+            item["price_source"] = price_result["source"]
+            item["image_url"] = price_result.get("image_url")
+            if item.get("_category") != "Spices & Pantry":
+                budget_total += price_result["estimated_price_usd"] * qty
+
+    return all_items, budget_total
+
+
+async def _substitute_for_budget(
+    meal_plan_text: str,
+    all_items: list[dict],
+    total: float,
+    budget: float,
+) -> str:
+    """Call Claude Haiku to swap expensive meal ingredients for cheaper ones."""
+    import anthropic, json as _json
+
+    overage = total - budget
+    non_spice = [it for it in all_items if it.get("_category") != "Spices & Pantry"]
+    expensive = sorted(
+        non_spice,
+        key=lambda x: x.get("estimated_unit_price_usd", 0) * x.get("quantity_needed", 1),
+        reverse=True,
+    )[:5]
+    expensive_str = ", ".join(
+        f"{it['name']} (${it.get('estimated_unit_price_usd', 0) * it.get('quantity_needed', 1):.2f})"
+        for it in expensive
+    )
+    prompt = (
+        f"The grocery list for this meal plan costs ${total:.2f} against a ${budget:.2f} "
+        f"weekly budget (${overage:.2f} over).\n\n"
+        f"Most expensive items: {expensive_str}\n\n"
+        f"Meal plan:\n{meal_plan_text}\n\n"
+        "Update this meal plan to use cheaper ingredient substitutions to bring total cost within budget.\n"
+        "Rules:\n"
+        "- Keep the exact 7-day structure with 3 meals per day\n"
+        "- Replace expensive proteins (salmon, shrimp, steak) with cheaper alternatives "
+        "(chicken thighs, canned tuna, eggs, lentils, beans)\n"
+        "- Keep all 7 fields per meal: name, prep_time, cook_time, temperature, servings, "
+        "ingredients (with precise spice quantities), steps\n"
+        "- Only change meals that use the expensive ingredients — leave affordable meals unchanged\n"
+        "- Return ONLY the raw JSON object, no prose, no code fences"
+    )
+    try:
+        client = anthropic.Anthropic()
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=8000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.content[0].text
+    except Exception:
+        return meal_plan_text
+
+
+@app.post("/grocery-list")
+async def grocery_list(req: GroceryListRequest):
     try:
         if req.meal_plan_text:
             foods = user.extract_ingredients_from_meal_plan(req.meal_plan_text)
@@ -174,33 +261,98 @@ async def grocery_list(req: GroceryListRequest):
 
     grocery_list_data = data.get("grocery_list", {})
 
-    # Collect all items for bulk price lookup
-    all_items = []
-    for items in grocery_list_data.values():
-        if isinstance(items, list):
-            all_items.extend(items)
+    # Resolve user's zip for location-accurate Kroger prices
+    zip_code: str | None = None
+    try:
+        zip_code = user.get_user_zip(req.profile_id)
+    except Exception:
+        pass
 
-    prices = await asyncio.gather(
-        *[get_grocery_price(it.get("name", ""), float(it.get("serving_size_g", 100))) for it in all_items],
-        return_exceptions=True,
-    )
+    # Fetch user's weekly budget
+    budget: float | None = None
+    try:
+        from db import fetch_one as _fetch_one
+        row = _fetch_one(
+            "SELECT weekly_budget_usd FROM user_grocery_preference WHERE profile_id = %s",
+            (req.profile_id,),
+        )
+        if row and row.get("weekly_budget_usd"):
+            budget = float(row["weekly_budget_usd"])
+    except Exception:
+        pass
 
-    total = 0.0
-    for item, price_result in zip(all_items, prices):
-        if isinstance(price_result, Exception):
-            item["estimated_unit_price_usd"] = 0.0
-            item["price_source"] = "unavailable"
-        else:
-            qty = max(1, min(int(item.get("quantity_needed", 1)), 10))
-            item["quantity_needed"] = qty
-            item["estimated_unit_price_usd"] = price_result["estimated_price_usd"]
-            item["price_source"] = price_result["source"]
-            item["image_url"] = price_result.get("image_url")
-            total += price_result["estimated_price_usd"] * qty
+    # Price all items; Spices & Pantry excluded from budget total
+    all_items, total = await _price_items(grocery_list_data, zip_code)
+
+    # If over budget by more than $10, try swapping expensive ingredients first
+    budget_adjusted = False
+    if budget and total > budget + 10 and req.meal_plan_text:
+        updated_plan = await _substitute_for_budget(req.meal_plan_text, all_items, total, budget)
+        try:
+            sub_foods = user.extract_ingredients_from_meal_plan(updated_plan)
+            sub_data = user.derive_grocery_list(sub_foods)
+            sub_list_data = sub_data.get("grocery_list", {})
+            sub_all_items, sub_total = await _price_items(sub_list_data, zip_code)
+            if sub_total < total:
+                grocery_list_data = sub_list_data
+                all_items = sub_all_items
+                total = sub_total
+                budget_adjusted = True
+        except Exception:
+            pass  # substitution failed; fall through to quantity pruner
+
+    # If still over budget by more than $10, prune quantities then items
+    if budget and total > budget + 10:
+        budget_adjusted = True
+        non_spice_items = [it for it in all_items if it.get("_category") != "Spices & Pantry"]
+
+        # Pass 1: reduce quantities proportionally (floor at 1)
+        scale = (budget + 10) / total
+        for item in non_spice_items:
+            if item.get("estimated_unit_price_usd", 0) > 0:
+                item["quantity_needed"] = max(1, round(item["quantity_needed"] * scale))
+        total = sum(
+            it.get("estimated_unit_price_usd", 0) * it.get("quantity_needed", 1)
+            for it in non_spice_items
+        )
+
+        # Pass 2: drop most expensive non-spice items until within $10 of budget
+        if total > budget + 10:
+            flat = sorted(
+                [(it, it.get("estimated_unit_price_usd", 0) * it.get("quantity_needed", 1))
+                 for it in non_spice_items],
+                key=lambda x: x[1], reverse=True,
+            )
+            for item, item_cost in flat:
+                if total <= budget + 10:
+                    break
+                for cat_items in grocery_list_data.values():
+                    if isinstance(cat_items, list) and item in cat_items:
+                        cat_items.remove(item)
+                        break
+                total -= item_cost
+
+        total = sum(
+            it.get("estimated_unit_price_usd", 0) * it.get("quantity_needed", 1)
+            for cat_items in grocery_list_data.values()
+            if isinstance(cat_items, list)
+            for it in cat_items
+            if it.get("_category") != "Spices & Pantry"
+        )
+
+    # Strip internal _category annotation before returning
+    for cat_items in grocery_list_data.values():
+        if isinstance(cat_items, list):
+            for it in cat_items:
+                it.pop("_category", None)
+
+    budget_over_by = round(total - budget, 2) if budget and total > budget else 0.0
 
     return {
         "total_estimated_cost_usd": round(total, 2),
         "grocery_list": grocery_list_data,
+        "budget_adjusted": budget_adjusted,
+        "budget_over_by": budget_over_by,
     }
 
 
@@ -330,6 +482,7 @@ def me(current_user: dict = Depends(get_current_user)):
 class SaveGroceryListRequest(BaseModel):
     total_estimated_cost_usd: float
     grocery_list: dict
+    meal_plan_json: dict | None = None
 
 
 @app.post("/grocery-list/save")
@@ -342,6 +495,7 @@ def save_grocery_list(
             user_id=str(current_user["user_id"]),
             total=req.total_estimated_cost_usd,
             items_by_category=req.grocery_list,
+            meal_plan_data=req.meal_plan_json,
         )
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))

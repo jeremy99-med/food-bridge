@@ -1,18 +1,25 @@
 """
-Grocery pricing via Open Food Facts + Open Prices (both free, no auth required).
+Grocery pricing via Kroger API (primary) with Open Food Facts + Open Prices fallback.
 
 Flow:
-  1. search_off(name)        → find product on Open Food Facts → get barcode
-  2. get_prices(barcode)     → fetch real crowdsourced prices from Open Prices
-  3. estimate_price(name)    → category-based fallback if no price data found
+  1. _search_kroger_price(name) → Kroger product catalog → real US retail shelf price
+  2. search_off(name)           → Open Food Facts barcode lookup (fallback)
+  3. get_prices(barcode)        → crowdsourced Open Prices data (fallback)
+  4. _match_category_price(name)→ static per-100g estimates (last resort)
 
 Public APIs used:
-  - https://world.openfoodfacts.org/api/v2/  (product search + lookup)
-  - https://prices.openfoodfacts.org/api/v1/ (crowdsourced prices)
+  - https://api.kroger.com/v1/           (Kroger Developer API — requires credentials)
+  - https://world.openfoodfacts.org/     (Open Food Facts — no auth)
+  - https://prices.openfoodfacts.org/    (Open Prices — no auth)
 """
 
-import httpx
+import base64
+import os
+import re
 import statistics
+import time
+
+import httpx
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -22,54 +29,290 @@ PRICES_URL      = "https://prices.openfoodfacts.org/api/v1/prices"
 
 TIMEOUT = 8.0
 
-# Fallback price estimates (USD per 100g) when no Open Prices data exists
+# Fallback price estimates (USD per 100g) — used when both Kroger and Open Prices fail.
+# Calibrated against US retail prices (Kroger / typical supermarket, 2025).
 FALLBACK_PRICE_PER_100G: dict[str, float] = {
-    # Proteins
-    "salmon":     1.80,
-    "tuna":       1.40,
-    "shrimp":     1.60,
-    "fish":       1.50,
-    "seafood":    1.50,
-    "chicken":    1.00,
-    "turkey":     0.90,
-    "poultry":    1.00,
-    "beef":       1.40,
+    # Proteins — per 100g of raw/packaged weight
+    "salmon":     2.20,   # ~$10/lb → $2.20/100g
+    "tuna":       1.80,
+    "shrimp":     1.80,
+    "haddock":    1.60,
+    "tilapia":    1.32,
+    "fish":       1.60,
+    "seafood":    1.60,
+    "chicken":    0.88,   # ~$4/lb boneless breast
+    "turkey":     1.10,
+    "poultry":    0.88,
+    "beef":       1.76,   # ~$8/lb ground beef
     "pork":       1.10,
-    "lamb":       1.60,
-    "meat":       1.20,
+    "lamb":       2.20,
+    "meat":       1.32,
     # Dairy & eggs
-    "yogurt":     0.60,
-    "cheese":     0.90,
-    "dairy":      0.50,
-    "egg":        0.30,
-    "milk":       0.20,
-    # Produce
-    "avocado":    0.80,
-    "berry":      0.90,
-    "fruit":      0.45,
-    "vegetable":  0.35,
-    "produce":    0.40,
+    "yogurt":     0.55,   # ~$3.50 for 32oz container
+    "cheese":     1.10,
+    "dairy":      0.55,
+    "egg":        0.75,   # ~$4.50/dozen (600g) → $0.75/100g
+    "milk":       0.13,   # ~$3.50/gallon (3785g)
+    "butter":     1.10,   # ~$5 for 454g (1lb box)
+    "cream":      0.77,
+    # Produce — specific items to avoid all hitting "default"
+    "garlic":     1.80,   # ~$0.89/head (50g) → ~$1.78/100g
+    "spinach":    1.10,   # ~$3.50 for 5oz bag
+    "kale":       0.66,
+    "broccoli":   0.44,   # ~$1.99 per head (~450g)
+    "cauliflower": 0.58,  # ~$3.49 per head
+    "asparagus":  0.80,   # ~$3.99 per bunch (~500g)
+    "avocado":    0.88,   # ~$1.75 per avocado (~200g)
+    "mushroom":   1.10,   # enoki/specialty mushrooms are pricier
+    "zucchini":   0.50,
+    "tomato":     0.66,
+    "cucumber":   0.33,
+    "celery":     0.33,
+    "lettuce":    0.44,
+    "pepper":     0.66,
+    "onion":      0.33,
+    "carrot":     0.33,
+    "berry":      1.32,   # ~$4 for 6oz container
+    "mango":      0.55,
+    "lemon":      0.44,
+    "lime":       0.44,
+    "fruit":      0.55,
+    "vegetable":  0.44,
+    "produce":    0.44,
     # Grains & legumes
-    "oat":        0.35,
-    "rice":       0.20,
-    "pasta":      0.25,
-    "bread":      0.35,
-    "grain":      0.30,
+    "oat":        0.33,
+    "rice":       0.22,
+    "pasta":      0.33,
+    "bread":      0.44,
+    "grain":      0.33,
     "cereal":     0.50,
-    "lentil":     0.28,
-    "bean":       0.28,
-    "legume":     0.30,
+    "lentil":     0.33,
+    "bean":       0.33,
+    "legume":     0.33,
     "tofu":       0.55,
-    # Other
-    "nut":        1.10,
-    "oil":        0.70,
+    # Nuts, oils & other
+    "nut":        1.32,
+    "almond":     1.54,
+    "walnut":     1.32,
+    "peanut":     0.77,
+    "oil":        1.50,   # ~$7.50 for 500ml bottle
+    "olive":      1.50,
     "sauce":      0.55,
     "frozen":     0.60,
     "snack":      0.80,
     "beverage":   0.20,
     "juice":      0.25,
-    "default":    0.55,
+    "default":    0.66,
 }
+
+
+# ── Kroger API ────────────────────────────────────────────────────────────────
+
+KROGER_TOKEN_URL     = "https://api.kroger.com/v1/connect/oauth2/token"
+KROGER_PRODUCTS_URL  = "https://api.kroger.com/v1/products"
+KROGER_LOCATIONS_URL = "https://api.kroger.com/v1/locations"
+
+# Default zip — Cincinnati, OH (Kroger HQ city); yields prices from a standard Midwest store.
+# Override via KROGER_ZIP_CODE env var.
+_KROGER_DEFAULT_ZIP = "45202"
+
+_kroger_token_cache:    dict | None       = None  # {"access_token": str, "expires_at": float}
+_kroger_location_cache: dict[str, str]   = {}    # zip_code → locationId (in-process cache)
+
+
+async def _get_kroger_token() -> str | None:
+    """Return a valid Kroger OAuth2 access token, refreshing when close to expiry."""
+    global _kroger_token_cache
+    client_id     = os.getenv("KROGER_CLIENT_ID")
+    client_secret = os.getenv("KROGER_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+    now = time.time()
+    if _kroger_token_cache and _kroger_token_cache["expires_at"] > now + 60:
+        return _kroger_token_cache["access_token"]
+    creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                KROGER_TOKEN_URL,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Authorization": f"Basic {creds}",
+                },
+                data={"grant_type": "client_credentials", "scope": "product.compact"},
+            )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        _kroger_token_cache = {
+            "access_token": data["access_token"],
+            "expires_at":   now + data.get("expires_in", 1800),
+        }
+        return _kroger_token_cache["access_token"]
+    except Exception:
+        return None
+
+
+def _ensure_zip_cache_table() -> None:
+    """Create zip_location_cache table if it doesn't exist. Silently skips if DB unavailable."""
+    try:
+        from db import execute as _execute
+        _execute(
+            """
+            CREATE TABLE IF NOT EXISTS zip_location_cache (
+                zip_code    VARCHAR(10)  PRIMARY KEY,
+                location_id VARCHAR(50)  NOT NULL,
+                cached_at   TIMESTAMPTZ  DEFAULT NOW()
+            )
+            """,
+            (),
+        )
+    except Exception:
+        pass
+
+
+async def _get_kroger_location_id(zip_code: str | None = None) -> str | None:
+    """
+    Return a Kroger locationId for the given zip code.
+
+    Lookup order:
+      1. In-process dict (fastest — survives within a single worker process)
+      2. DB table zip_location_cache (survives container restarts)
+      3. Live Kroger /v1/locations call (saved to DB for future requests)
+    """
+    zip_code = zip_code or os.getenv("KROGER_ZIP_CODE", _KROGER_DEFAULT_ZIP)
+
+    if zip_code in _kroger_location_cache:
+        return _kroger_location_cache[zip_code]
+
+    # Check DB cache
+    try:
+        from db import fetch_one as _fetch_one, execute as _execute
+        row = _fetch_one(
+            "SELECT location_id FROM zip_location_cache WHERE zip_code = %s",
+            (zip_code,),
+        )
+        if row:
+            _kroger_location_cache[zip_code] = row["location_id"]
+            return row["location_id"]
+    except Exception:
+        pass
+
+    # Live lookup
+    token = await _get_kroger_token()
+    if not token:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                KROGER_LOCATIONS_URL,
+                params={"filter.zipCode.near": zip_code, "filter.limit": 1},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if resp.status_code != 200:
+            return None
+        locations = resp.json().get("data", [])
+        if not locations:
+            return None
+        location_id: str = locations[0]["locationId"]
+
+        # Persist to DB and in-process cache
+        _kroger_location_cache[zip_code] = location_id
+        try:
+            from db import execute as _execute
+            _execute(
+                """
+                INSERT INTO zip_location_cache (zip_code, location_id)
+                VALUES (%s, %s)
+                ON CONFLICT (zip_code) DO UPDATE
+                    SET location_id = EXCLUDED.location_id,
+                        cached_at   = NOW()
+                """,
+                (zip_code, location_id),
+            )
+        except Exception:
+            pass
+
+        return location_id
+    except Exception:
+        return None
+
+
+def _parse_size_to_grams(size_str: str) -> float | None:
+    """Convert a Kroger size string ('1 lb', '12 oz', '500 g') to grams."""
+    m = re.match(r"([\d.]+)\s*(lb|lbs|oz|g|kg|ml|l)?", size_str.lower().strip())
+    if not m:
+        return None
+    amount = float(m.group(1))
+    unit   = m.group(2) or ""
+    conversions: dict[str, float] = {
+        "lb": 453.592, "lbs": 453.592,
+        "oz": 28.3495,
+        "g":  1.0,
+        "kg": 1000.0,
+        "ml": 1.0,
+        "l":  1000.0,
+    }
+    factor = conversions.get(unit)
+    return amount * factor if factor is not None else None
+
+
+async def _search_kroger_price(
+    food_name: str,
+    serving_size_g: float,
+    zip_code: str | None = None,
+) -> dict | None:
+    """
+    Query the Kroger product catalog and return a price estimate.
+
+    Returns dict with estimated_price_usd, price_per_100g_usd, image_url,
+    or None if Kroger credentials are missing, the item isn't found, or any error occurs.
+    """
+    token = await _get_kroger_token()
+    if not token:
+        return None
+    location_id = await _get_kroger_location_id(zip_code)
+    params: dict = {
+        "filter.term":  food_name,
+        "filter.limit": 5,
+    }
+    if location_id:
+        params["filter.locationId"] = location_id
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                KROGER_PRODUCTS_URL,
+                params=params,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        if resp.status_code != 200:
+            return None
+        products = resp.json().get("data", [])
+        for product in products:
+            for item in product.get("items", []):
+                price_data = item.get("price") or {}
+                regular = price_data.get("regular") or price_data.get("promo")
+                if not regular or regular <= 0:
+                    continue
+                unit_g         = _parse_size_to_grams(item.get("size", ""))
+                price_per_100g = (regular / unit_g * 100) if unit_g else (regular / 4)
+                # Extract first medium/small product image
+                image_url: str | None = None
+                for img in product.get("images", []):
+                    for sz in img.get("sizes", []):
+                        if sz.get("id") in ("medium", "small"):
+                            image_url = sz.get("url")
+                            break
+                    if image_url:
+                        break
+                return {
+                    "estimated_price_usd": round(price_per_100g / 100 * serving_size_g, 2),
+                    "price_per_100g_usd":  round(price_per_100g, 3),
+                    "image_url":           image_url,
+                }
+    except Exception:
+        pass
+    return None
 
 
 # ── Open Food Facts ───────────────────────────────────────────────────────────
@@ -199,26 +442,42 @@ def _match_category_price(name: str, categories: list[str]) -> float:
 async def get_grocery_price(
     food_name: str,
     serving_size_g: float = 100.0,
+    zip_code: str | None = None,
 ) -> dict:
     """
     Get the best available price for a food item.
 
-    Tries Open Food Facts → Open Prices first.
-    Falls back to category-based estimate if no live data.
+    Tries Kroger first (real US retail shelf prices), then Open Food Facts →
+    Open Prices, then falls back to category-based estimate.
 
     Args:
         food_name:      Food description (from FDC or branded_food)
         serving_size_g: Serving size in grams (used to scale price per 100g)
+        zip_code:       User's zip — used to select a nearby Kroger store for accurate prices
 
     Returns:
         dict with estimated_price_usd, price_per_100g, source, and barcode if found
     """
+    # Step 1: Try Kroger (real US retail prices)
+    kroger = await _search_kroger_price(food_name, serving_size_g, zip_code)
+    if kroger:
+        return {
+            "food_name": food_name,
+            "barcode": None,
+            "image_url": kroger["image_url"],
+            "serving_size_g": serving_size_g,
+            "estimated_price_usd": kroger["estimated_price_usd"],
+            "price_per_100g_usd": kroger["price_per_100g_usd"],
+            "price_range": None,
+            "source": "kroger",
+        }
+
     barcode: str | None = None
     categories: list[str] = []
     image_url: str | None = None
     price_summary: dict | None = None
 
-    # Step 1: Search Open Food Facts for a matching product
+    # Step 2: Search Open Food Facts for a matching product
     try:
         products = await search_off(food_name, max_results=3)
         if products:
@@ -229,7 +488,7 @@ async def get_grocery_price(
     except Exception:
         pass
 
-    # Step 2: Fetch prices from Open Prices using barcode
+    # Step 3: Fetch prices from Open Prices using barcode
     if barcode:
         try:
             entries = await get_prices(barcode)
@@ -237,7 +496,7 @@ async def get_grocery_price(
         except Exception:
             pass
 
-    # Step 3: Calculate price for the given serving size
+    # Step 4: Calculate price for the given serving size
     if price_summary:
         # Open Prices returns per-item price — estimate per 100g from median
         # Most entries are per package; scale by serving size as a fraction
@@ -271,19 +530,21 @@ async def get_grocery_price(
 
 async def get_grocery_prices_bulk(
     foods: list[dict],
+    zip_code: str | None = None,
 ) -> list[dict]:
     """
     Price a list of foods concurrently.
 
     Args:
-        foods: list of dicts with keys: food_name, serving_size_g
+        foods:    list of dicts with keys: food_name, serving_size_g
+        zip_code: user's zip — passed to every get_grocery_price call
 
     Returns:
         list of price dicts from get_grocery_price, one per input food
     """
     import asyncio
     tasks = [
-        get_grocery_price(f["food_name"], f.get("serving_size_g", 100.0))
+        get_grocery_price(f["food_name"], f.get("serving_size_g", 100.0), zip_code)
         for f in foods
     ]
     return await asyncio.gather(*tasks)

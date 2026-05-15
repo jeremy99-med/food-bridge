@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- can body -->
+  <ellipse cx="32" cy="44" rx="20" ry="6" fill="#A0A8B0"/>
+  <rect x="12" y="22" width="40" height="22" fill="#B8C0C8"/>
+  <ellipse cx="32" cy="22" rx="20" ry="6" fill="#D0D8E0"/>
+  <!-- label band -->
+  <rect x="12" y="28" width="40" height="10" fill="#E84030"/>
+  <path d="M12 28 Q32 26 52 28" stroke="#C83020" stroke-width="0.5" fill="none"/>
+  <path d="M12 38 Q32 40 52 38" stroke="#C83020" stroke-width="0.5" fill="none"/>
+  <!-- label text hint -->
+  <rect x="18" y="31" width="28" height="4" rx="1" fill="white" opacity="0.3"/>
+  <!-- pull tab on top -->
+  <ellipse cx="32" cy="22" rx="8" ry="2.5" fill="#A0A8B0"/>
+  <path d="M36 22 C40 20 44 20 44 22" stroke="#808898" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="44" cy="22" r="2.5" fill="#909898"/>
+</svg>

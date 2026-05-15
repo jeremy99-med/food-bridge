@@ -1,7 +1,9 @@
 """
 LangChain agents for step 4 (meal plan) and step 5 (grocery list).
 """
+import json
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -40,7 +42,7 @@ def _ensure_initialized():
             "food", "food_category", "food_nutrient", "nutrient", "branded_food",
             "user_profile", "user_calculated_dv",
             "user_grocery_preference", "user_dietary_preference", "user_allergy",
-            "user_medication", "user_health_condition",
+            "user_medication", "user_health_condition", "user_health_goal",
         ],
         sample_rows_in_table_info=2,
     )
@@ -91,19 +93,124 @@ HARD CONSTRAINTS — query ALL of these tables before building the plan:
    apply the appropriate substitutions, and document every swap in suggested_swaps.
    A meal plan with blank days is NEVER acceptable — always find a compliant substitute.
 
+BUDGET CONSTRAINT — query user_grocery_preference for this profile_id:
+- If weekly_budget_usd <= 50: prioritize very cheap proteins (eggs, canned tuna, chicken thighs, lentils, beans). Avoid salmon, shrimp, specialty items.
+- If weekly_budget_usd <= 100: prefer chicken, turkey, canned fish. Limit salmon to 1-2 meals. Avoid specialty/exotic produce.
+- If weekly_budget_usd > 100: no restriction, but avoid unnecessarily expensive specialty items.
+Always prefer whole foods over branded/processed products regardless of budget.
+
 General rules:
 - Only SELECT queries. Never modify data.
 - Limit all queries to 20 rows max.
 - Return raw JSON only — no markdown, no prose, no explanation.
 
-Return ONLY this exact JSON shape:
+COOKING INSTRUCTIONS — every meal in "days" MUST include these fields:
+- servings: integer — query user_profile for household_size_adults + household_size_children
+- prep_time: realistic estimate e.g. "5 min", "10 min"
+- cook_time: realistic estimate e.g. "20 min", "30 min"
+- temperature: oven temp string for baked/roasted meals e.g. "400°F", null for stovetop or no-heat
+- ingredients: list of strings with amounts scaled to servings count — include ALL spices and seasonings with precise quantities (e.g. "1 tsp paprika", "1/2 tsp ground cumin", "1/4 tsp cayenne pepper", "1/2 tsp salt", "1/4 tsp black pepper"). Never use vague terms like "to taste" or "as needed" — always give a specific amount.
+- steps: 3-5 clear cooking steps, each a complete sentence
+
+Return ONLY this exact JSON shape. Every meal MUST have all 7 fields — name, prep_time, cook_time, temperature, servings, ingredients, steps:
 {
   "days": [
-    {"day": "Day 1", "meals": [{"name": "Breakfast: Oats + Yogurt"}, {"name": "Lunch: Tofu Stir-fry + Broccoli"}, {"name": "Dinner: Lentil Soup + Rice"}]}
+    {
+      "day": "Day 1",
+      "meals": [
+        {
+          "name": "Breakfast: Oats + Yogurt",
+          "prep_time": "2 min",
+          "cook_time": "10 min",
+          "temperature": null,
+          "servings": 1,
+          "ingredients": ["1/2 cup rolled oats", "1 cup water", "1/2 cup plain Greek yogurt"],
+          "steps": ["Bring 1 cup water to a boil.", "Stir in oats and cook 5 min over medium heat.", "Transfer to bowl and top with yogurt."]
+        },
+        {
+          "name": "Lunch: Chicken + Broccoli",
+          "prep_time": "10 min",
+          "cook_time": "15 min",
+          "temperature": null,
+          "servings": 1,
+          "ingredients": ["4 oz chicken breast", "1 cup broccoli florets", "1 tsp olive oil", "1 tsp paprika", "1/2 tsp garlic powder", "1/2 tsp salt", "1/4 tsp black pepper"],
+          "steps": ["Season chicken with paprika, garlic powder, salt, and pepper.", "Heat olive oil in a skillet over medium-high heat.", "Cook chicken 6-7 min per side until internal temp reaches 165°F.", "Steam broccoli 4 min and serve alongside."]
+        },
+        {
+          "name": "Dinner: Baked Salmon + Asparagus",
+          "prep_time": "5 min",
+          "cook_time": "20 min",
+          "temperature": "400°F",
+          "servings": 1,
+          "ingredients": ["6 oz salmon fillet", "1 cup asparagus spears", "1 tsp olive oil", "juice of half a lemon"],
+          "steps": ["Preheat oven to 400°F.", "Place salmon and asparagus on a lined baking sheet.", "Drizzle with olive oil and lemon juice.", "Bake 15-18 min until salmon flakes easily with a fork."]
+        }
+      ]
+    }
   ],
   "nutrient_coverage": {"calories_kcal": 95, "protein_g": 110, "fiber_g": 88},
-  "suggested_swaps": [{"original": "Candy Bar", "replacement": "Mixed Berries", "reason": "Substituted — user takes insulin; high-sugar foods replaced with low-GI alternatives"}]
-}""")
+  "suggested_swaps": [{"original": "Candy Bar", "replacement": "Mixed Berries", "reason": "Substituted — user takes insulin; high-sugar foods replaced with low-GI alternatives"}],
+  "alternatives": {
+    "breakfast": [
+      {"name": "Greek Yogurt Parfait with Berries"},
+      {"name": "Scrambled Eggs with Spinach"},
+      {"name": "Overnight Oats with Chia Seeds"},
+      {"name": "Avocado Toast on Whole Grain Bread"},
+      {"name": "Cottage Cheese with Flaxseed and Fruit"}
+    ],
+    "lunch": [
+      {"name": "Grilled Chicken Salad with Olive Oil"},
+      {"name": "Lentil and Vegetable Soup"},
+      {"name": "Brown Rice Bowl with Edamame and Vegetables"},
+      {"name": "Turkey and Avocado Wrap on Whole Grain"},
+      {"name": "Quinoa Tabbouleh with Chickpeas"}
+    ],
+    "dinner": [
+      {"name": "Baked Salmon with Roasted Broccoli"},
+      {"name": "Chicken Stir-fry with Brown Rice"},
+      {"name": "Black Bean Tacos on Corn Tortillas"},
+      {"name": "Turkey Meatballs with Zucchini Noodles"},
+      {"name": "Lentil Dal with Cauliflower Rice"}
+    ]
+  }
+}
+
+CRITICAL: The "alternatives" key MUST be present in your response. All 15 alternatives must
+satisfy the SAME allergy, dietary preference, medication, and health condition constraints
+applied to the main meal plan. Do not repeat any meal from the main plan in alternatives.
+Exactly 5 alternatives per meal type (breakfast, lunch, dinner).
+Alternatives need only the "name" field — no cooking instructions required for alternatives.""")
+
+
+def _extract_json(text: str) -> str:
+    """Extract the first valid JSON object containing 'days' from agent output."""
+    # Try code fences first (```json ... ``` or ``` ... ```)
+    for m in re.finditer(r'```(?:json)?\s*\n?(\{.+?\})\s*\n?```', text, re.DOTALL):
+        candidate = m.group(1)
+        try:
+            obj = json.loads(candidate)
+            if "days" in obj:
+                return candidate
+        except json.JSONDecodeError:
+            pass
+    # Fall back to raw brace scan
+    for m in re.finditer(r'\{', text):
+        start = m.start()
+        depth = 0
+        for i, ch in enumerate(text[start:]):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:start + i + 1]
+                    try:
+                        obj = json.loads(candidate)
+                        if "days" in obj:
+                            return candidate
+                    except json.JSONDecodeError:
+                        break
+    return text
 
 
 def generate_meal_plan(profile_id: str, selected_foods: list[dict]) -> str:
@@ -114,15 +221,26 @@ def generate_meal_plan(profile_id: str, selected_foods: list[dict]) -> str:
     message = (
         f"[profile_id: {profile_id}]\n\n"
         f"Selected foods: {foods_str}\n\n"
-        "Step 1: Query user_dietary_preference, user_allergy, user_medication, and user_health_condition for this profile_id.\n"
+        "Step 1: Query user_dietary_preference, user_allergy, user_medication, user_health_condition, AND user_grocery_preference for this profile_id. Note the weekly_budget_usd and apply the budget constraint rules from your system prompt.\n"
         "Step 2: For each selected food, check whether it conflicts with dietary preferences, allergies, OR medication/condition rules.\n"
         "Step 3: Any conflicting food MUST be substituted — never skip or leave a meal blank. "
         "For insulin/diabetes: replace high-sugar or high-GI foods with oats, lentils, berries, eggs, leafy greens, or brown rice. "
         "Search the food table to find real substitute names (SELECT description FROM food WHERE description ILIKE '%oats%' LIMIT 5).\n"
-        "Step 4: Build a complete 7-day meal plan (all 7 days, 3 meals each) using the substituted foods and the user's daily values.\n"
-        "Step 5: Return the JSON. Every day must have exactly 3 meals. suggested_swaps must document every substitution made."
+        "Step 4: Query user_profile for this profile_id to get household_size_adults and household_size_children — use their sum as the 'servings' value for all meals. "
+        "Build a complete 7-day meal plan (all 7 days, 3 meals each). Every meal MUST include prep_time, cook_time, temperature (or null), servings, ingredients (with amounts), and steps.\n"
+        "Step 5: Generate the 'alternatives' pool — exactly 5 breakfast, 5 lunch, and 5 dinner options "
+        "that satisfy ALL the same allergy, dietary, medication, and condition constraints. "
+        "Do NOT repeat any meal already in the 7-day plan.\n"
+        "Step 6: Output ONLY the raw JSON object — no prose, no code fences, no explanation before or after."
     )
     result = _meal_plan_agent.invoke({"messages": [{"role": "user", "content": message}]})
-    return result["messages"][-1].content
+    raw = result["messages"][-1].content
+    if isinstance(raw, list):
+        raw = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in raw
+            if not isinstance(block, dict) or block.get("type") == "text"
+        )
+    return _extract_json(raw)
 
 

@@ -1,73 +1,26 @@
 import { useState } from "react";
-import { useApp, type Sex, type Activity, type Smoking } from "@/store/app";
+import { useApp, type Sex } from "@/store/app";
 import { createProfile } from "@/lib/api";
 import ProgressBar from "@/components/ProgressBar";
 import PillGroup from "@/components/PillGroup";
 import Stepper from "@/components/Stepper";
 import Spinner from "@/components/Spinner";
 import ErrorAlert from "@/components/ErrorAlert";
-
-const ACTIVITY: Activity[] = ["Sedentary", "Lightly Active", "Moderately Active", "Very Active", "Extra Active"];
-
-const GOALS = ["Weight Loss", "Muscle Gain", "Weight Gain", "Maintenance"];
-// Weight Loss and Weight Gain are mutually exclusive
-const EXCLUSIVE_PAIRS = [["Weight Loss", "Weight Gain"]];
-
-const CONDITIONS = [
-  "None",
-  "Hypertension", "Type 2 Diabetes", "Type 1 Diabetes", "Heart Disease",
-  "High Cholesterol", "Obesity", "Kidney Disease", "Celiac Disease",
-  "Thyroid Disorder", "Anemia", "Osteoporosis", "GERD / Acid Reflux",
-  "Irritable Bowel Syndrome", "Crohn's Disease", "Polycystic Ovary Syndrome",
-  "Gestational Diabetes", "Prediabetes", "Liver Disease",
-];
-
-const SMOKING: Smoking[] = ["Smoker", "Non-Smoker", "Former Smoker"];
-
-// Medications by category
-const MEDICATION_CATEGORIES: Record<string, string[]> = {
-  "💊 Diabetes": ["Metformin", "Insulin", "Ozempic (Semaglutide)", "Jardiance", "Januvia"],
-  "❤️ Heart / Blood Pressure": ["Lisinopril", "Amlodipine", "Metoprolol", "Atorvastatin", "Losartan", "Hydrochlorothiazide"],
-  "🧠 Mental Health": ["Sertraline", "Escitalopram", "Fluoxetine", "Bupropion", "Quetiapine"],
-  "🩺 Thyroid": ["Levothyroxine", "Methimazole"],
-  "🦴 Bone Health": ["Calcium + Vitamin D", "Alendronate"],
-  "🌿 Supplements": ["Iron Supplement", "Folate / Folic Acid", "Vitamin B12", "Vitamin D3", "Omega-3 / Fish Oil"],
-  "💉 Blood Thinners": ["Warfarin", "Apixaban (Eliquis)", "Rivaroxaban (Xarelto)"],
-  "🫁 Respiratory": ["Albuterol", "Fluticasone", "Montelukast"],
-};
+import {
+  ACTIVITY, GOALS, CONDITIONS, SMOKING, MEDICATION_CATEGORIES,
+  isValidAge, isValidHeight, isValidWeight,
+} from "@/lib/profileUtils";
+import Field from "@/components/ProfileField";
+import { useProfileForm } from "@/hooks/useProfileForm";
 
 const STEPS = 6;
-
-// Unit conversion helpers (imperial ↔ metric)
-function ftInToCm(ft: string, inches: string): string {
-  return ((parseFloat(ft) * 12 + parseFloat(inches)) * 2.54).toFixed(1);
-}
-function lbsToKg(lbs: string): string {
-  return (parseFloat(lbs) * 0.453592).toFixed(1);
-}
-function cmToFtIn(cm: string): { ft: string; inches: string } {
-  const totalIn = parseFloat(cm) / 2.54;
-  return { ft: String(Math.floor(totalIn / 12)), inches: String(Math.round(totalIn % 12)) };
-}
-function kgToLbs(kg: string): string {
-  return (parseFloat(kg) / 0.453592).toFixed(1);
-}
-
-// Validation helpers
-const isValidFloat = (v: string) => /^\d+(\.\d+)?$/.test(v.trim()) && parseFloat(v) > 0;
-const isValidAge = (v: string) => /^\d+$/.test(v.trim()) && parseInt(v) >= 1 && parseInt(v) <= 120;
-const isValidHeight = (v: string) => isValidFloat(v) && parseFloat(v) >= 50 && parseFloat(v) <= 300;
-const isValidWeight = (v: string) => isValidFloat(v) && parseFloat(v) >= 10 && parseFloat(v) <= 500;
 
 const Onboarding = () => {
   const { profile, setProfile, setScreen, setProfileId, onboardingStep: step, setOnboardingStep: setStep } = useApp();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [unitSystem, setUnitSystem] = useState<'imperial' | 'metric'>('imperial');
-  const [heightFt, setHeightFt] = useState(() => profile.height ? cmToFtIn(profile.height).ft : '');
-  const [heightIn, setHeightIn] = useState(() => profile.height ? cmToFtIn(profile.height).inches : '');
-  const [weightLbs, setWeightLbs] = useState(() => profile.weight ? kgToLbs(profile.weight) : '');
+  const { unitSystem, heightFt, setHeightFt, heightIn, setHeightIn, weightLbs, setWeightLbs, handleUnitToggle, handleGoalChange, handleConditionChange, toggleMedication } = useProfileForm();
 
   const next = () => {
     const errs = validateStep(step);
@@ -89,45 +42,6 @@ const Onboarding = () => {
       if (!profile.sex) errs.sex = "Please select a sex";
     }
     return errs;
-  };
-
-  const handleUnitToggle = (system: 'imperial' | 'metric') => {
-    if (system === 'imperial') {
-      if (profile.height) {
-        const { ft, inches } = cmToFtIn(profile.height);
-        setHeightFt(ft);
-        setHeightIn(inches);
-      }
-      if (profile.weight) setWeightLbs(kgToLbs(profile.weight));
-    }
-    setUnitSystem(system);
-  };
-
-  const handleGoalChange = (selected: string[]) => {
-    let next = selected;
-    for (const [a, b] of EXCLUSIVE_PAIRS) {
-      const hadA = profile.goals.includes(a);
-      const hadB = profile.goals.includes(b);
-      const hasA = selected.includes(a);
-      const hasB = selected.includes(b);
-      if (!hadA && hasA && hasB) next = next.filter((g) => g !== b);
-      if (!hadB && hasB && hasA) next = next.filter((g) => g !== a);
-    }
-    setProfile({ goals: next });
-  };
-
-  const handleConditionChange = (selected: string[]) => {
-    // If "None" was just added, clear everything else
-    const justAddedNone = selected.includes("None") && !profile.conditions.includes("None");
-    if (justAddedNone) { setProfile({ conditions: ["None"] }); return; }
-    // If something else was added while "None" was selected, remove "None"
-    setProfile({ conditions: selected.filter((c) => c !== "None") });
-  };
-
-  const toggleMedication = (med: string) => {
-    const current = profile.medications;
-    const next = current.includes(med) ? current.filter((m) => m !== med) : [...current, med];
-    setProfile({ medications: next });
   };
 
   const submit = async () => {
@@ -175,17 +89,18 @@ const Onboarding = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="px-5 pt-6 pb-4 max-w-xl mx-auto w-full">
+      <header className="px-5 pt-4 pb-3 max-w-xl mx-auto w-full" style={{ background: 'var(--color-background)' }}>
         <ProgressBar current={step} total={STEPS} />
       </header>
 
-      <main className="flex-1 px-5 max-w-xl mx-auto w-full pb-32">
+      <main className="flex-1 px-5 max-w-xl mx-auto w-full pb-24">
         {error && <div className="mb-4"><ErrorAlert message={error} onDismiss={() => setError(null)} /></div>}
 
+        <div key={step} className="fb-step-fade">
         {/* Step 1 — Measurements */}
         {step === 1 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">📏 About you</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">📏 About you</h1>
             <p className="text-sm text-muted-foreground -mt-4">Basic measurements help us personalize your nutrition.</p>
 
             {/* Unit system toggle */}
@@ -315,8 +230,8 @@ const Onboarding = () => {
 
         {/* Step 2 — Activity */}
         {step === 2 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">🏃 Activity level</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">🏃 Activity level</h1>
             <p className="text-sm text-muted-foreground -mt-4">How active are you on a typical week?</p>
             <div className="flex flex-col gap-2">
               {ACTIVITY.map((a) => (
@@ -333,16 +248,24 @@ const Onboarding = () => {
         {/* Step 3 — Goals */}
         {step === 3 && (
           <section className="space-y-4">
-            <h1 className="text-3xl font-bold">🎯 Health goals</h1>
+            <h1 className="text-[2.2rem] fb-display">🎯 Health goals</h1>
             <p className="text-sm text-muted-foreground">Select one goal.</p>
-            <PillGroup options={GOALS} selected={profile.goals} onChange={(v) => setProfile({ goals: v })} multi={false} />
+            <div className="flex flex-col gap-2">
+              {GOALS.map((g) => (
+                <button key={g} type="button" onClick={() => setProfile({ goals: [g] })}
+                  className={`h-12 border-2 border-foreground rounded-lg text-sm font-medium px-4 text-left transition-colors
+                    ${profile.goals.includes(g) ? "bg-foreground text-white" : "bg-white text-foreground"}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
           </section>
         )}
 
         {/* Step 4 — Conditions */}
         {step === 4 && (
           <section className="space-y-4">
-            <h1 className="text-3xl font-bold">🩺 Health conditions</h1>
+            <h1 className="text-[2.2rem] fb-display">🩺 Health conditions</h1>
             <p className="text-sm text-muted-foreground">Select all that apply. Selecting "None" will clear all others.</p>
             <PillGroup options={CONDITIONS} selected={profile.conditions} onChange={handleConditionChange} />
           </section>
@@ -350,8 +273,8 @@ const Onboarding = () => {
 
         {/* Step 5 — Lifestyle + Medications */}
         {step === 5 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">🌿 Lifestyle</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">🌿 Lifestyle</h1>
             <Field label="Smoking status">
               <div className="grid grid-cols-3 border-2 border-foreground h-12 rounded-lg overflow-hidden">
                 {SMOKING.map((s) => (
@@ -364,7 +287,7 @@ const Onboarding = () => {
             </Field>
 
             <div className="space-y-3">
-              <span className="fb-section-title block">💊 Medications <span className="text-muted-foreground normal-case font-normal">(optional)</span></span>
+              <span className="fb-section-title block">Medications <span className="text-muted-foreground normal-case font-normal">(optional)</span></span>
               {profile.medications.length > 0 && (
                 <p className="text-xs text-muted-foreground">Selected: {profile.medications.join(", ")}</p>
               )}
@@ -372,7 +295,7 @@ const Onboarding = () => {
                 {Object.entries(MEDICATION_CATEGORIES).map(([category, meds]) => (
                   <div key={category} className="space-y-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{category}</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 justify-center">
                       {meds.map((med) => (
                         <button key={med} type="button"
                           className="fb-pill"
@@ -391,8 +314,8 @@ const Onboarding = () => {
 
         {/* Step 6 — Household */}
         {step === 6 && (
-          <section className="space-y-6">
-            <h1 className="text-3xl font-bold">🏠 Household</h1>
+          <section className="space-y-5">
+            <h1 className="text-[2.2rem] fb-display">🏠 Household</h1>
             <p className="text-sm text-muted-foreground -mt-4">Who are we planning meals for?</p>
             <div className="space-y-3">
               <Stepper label="Adults" value={profile.adults} onChange={(n) => setProfile({ adults: n })} min={1} max={20} />
@@ -400,10 +323,11 @@ const Onboarding = () => {
             </div>
           </section>
         )}
+        </div>
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-background border-t border-foreground">
-        <div className="max-w-xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
+      <footer className="fb-footer">
+        <div className="max-w-xl mx-auto px-5 py-3 flex items-center justify-between gap-3">
           <button type="button" onClick={back} disabled={step === 1} className="fb-btn-outline">Back</button>
           {step < STEPS ? (
             <button type="button" onClick={next} disabled={!canContinue} className="fb-btn flex-1">Continue</button>
@@ -415,13 +339,5 @@ const Onboarding = () => {
     </div>
   );
 };
-
-const Field = ({ label, error, className, children }: { label: string; error?: string; className?: string; children: React.ReactNode }) => (
-  <label className={`block space-y-2 ${className ?? ''}`}>
-    <span className="fb-section-title block">{label}</span>
-    {children}
-    {error && <p className="text-xs text-red-500 mt-1">⚠ {error}</p>}
-  </label>
-);
 
 export default Onboarding;
