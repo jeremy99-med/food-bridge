@@ -28,8 +28,8 @@ export function DarkModeToggle({ dark, onToggle }: Props) {
       <span
         style={{
           position: 'absolute',
-          top: 2,
-          left: dark ? 15 : 2,
+          top: 3,
+          left: dark ? 18 : 2,
           width: 11,
           height: 11,
           borderRadius: '50%',

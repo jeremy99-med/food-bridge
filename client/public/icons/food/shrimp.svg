@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- body: thick C-curve, same trick as banana -->
+  <path d="M44 12 C54 20,56 36,48 48 C40 58,26 62,16 56"
+        stroke="#FF9070" stroke-width="13" fill="none" stroke-linecap="round"/>
+  <!-- segmentation lines across the curve -->
+  <path d="M50 22 Q42 20 38 26" stroke="#D06848" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M52 32 Q44 32 40 38" stroke="#D06848" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M48 42 Q40 44 36 50" stroke="#D06848" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- head -->
+  <circle cx="44" cy="12" r="8" fill="#E07858"/>
+  <!-- eye -->
+  <circle cx="47" cy="9" r="2.5" fill="#1A1A1A"/>
+  <circle cx="48" cy="8" r="1" fill="white"/>
+  <!-- antennae -->
+  <path d="M46 5 C50 1,54 0,54 0" stroke="#D06848" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M41 6 C40 2,40 0,42 0" stroke="#D06848" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <!-- tail fan -->
+  <path d="M16 56 C10 54,6 58,10 62 C12 64,16 60,16 56 Z" fill="#FF9070"/>
+  <path d="M16 56 C8 54,4 58,6 62 C8 64,14 60,16 56 Z" fill="#E07858"/>
+  <path d="M16 56 C10 60,8 64,12 64 C14 64,16 60,16 56 Z" fill="#FF9070"/>
+</svg>

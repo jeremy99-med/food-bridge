@@ -8,14 +8,20 @@ import GroceryList from "@/screens/GroceryList";
 import Login from "@/screens/Login";
 import Signup from "@/screens/Signup";
 import SavedLists from "@/screens/SavedLists";
+import Profile from "@/screens/Profile";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
 
 const SCREEN_LABELS = ["Health Profile", "Preferences", "Find Foods", "Meal Plan", "Grocery List"];
 
 export default function Home() {
-  const { screen, setScreen, setReturnScreen, authUser, logout } = useApp();
+  const { screen, setScreen, setReturnScreen, authUser, profileId, logout } = useApp();
   const [dark, setDark] = useDarkMode();
+
+  // Skip onboarding if user is already logged in with a complete profile
+  React.useEffect(() => {
+    if (authUser && profileId && screen === 1) setScreen(2);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSignIn = () => {
     setReturnScreen(screen);
@@ -26,7 +32,12 @@ export default function Home() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#daeade]">
         <div className="max-w-xl mx-auto px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setScreen(authUser && profileId ? 2 : 1)}
+            className="flex items-center gap-2 cursor-pointer"
+            aria-label="Go to home"
+          >
             <span className="text-xl">🌿</span>
             <span
               className="text-[1.1rem] font-extrabold tracking-[-0.04em]"
@@ -34,12 +45,22 @@ export default function Home() {
             >
               FoodBridge
             </span>
-          </div>
+          </button>
 
           <div className="flex items-center gap-3">
             {authUser ? (
               <>
                 <span className="text-[11px] hidden sm:block" style={{ color: 'var(--color-muted-foreground)' }}>{authUser.username}</span>
+                {profileId && (
+                  <button
+                    type="button"
+                    onClick={() => setScreen(9)}
+                    className="text-[11px] font-medium underline underline-offset-2"
+                    style={{ color: 'var(--color-foreground)' }}
+                  >
+                    Profile
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setScreen(8)}
@@ -107,6 +128,7 @@ export default function Home() {
           {screen === 6 && <Login />}
           {screen === 7 && <Signup />}
           {screen === 8 && <SavedLists />}
+          {screen === 9 && <Profile />}
         </div>
       </main>
     </div>

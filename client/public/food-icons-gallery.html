@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FoodBridge — Food Icon Gallery</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Georgia', serif;
+      background: #FAF6EE;
+      color: #2D3B1F;
+      padding: 40px 32px;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #1E3A0F;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #7A8A6A;
+      margin-bottom: 40px;
+      font-family: 'Arial', sans-serif;
+    }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #7A8A6A;
+      margin-bottom: 16px;
+      margin-top: 36px;
+      font-family: 'Arial', sans-serif;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E8DFD0;
+      border-radius: 12px;
+      padding: 16px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      transition: box-shadow 0.15s;
+    }
+    .card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .card img {
+      width: 48px;
+      height: 48px;
+    }
+    .card .name {
+      font-size: 11px;
+      font-family: 'Arial', sans-serif;
+      color: #5A6A4A;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .card .file {
+      font-size: 9px;
+      font-family: 'Courier New', monospace;
+      color: #A0A890;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      background: #EAF4E0;
+      color: #3A6A1A;
+      font-size: 10px;
+      font-family: 'Arial', sans-serif;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+    }
+  </style>
+</head>
+<body>
+  <h1>FoodBridge Food Icons</h1>
+  <p class="subtitle">SVG icon library for the grocery list display. Each icon appears next to its matched food item.</p>
+  <span class="badge" id="count-badge">Loading…</span>
+
+  <div class="section-title">Produce — Fruits</div>
+  <div class="grid" id="fruits"></div>
+
+  <div class="section-title">Produce — Vegetables</div>
+  <div class="grid" id="vegetables"></div>
+
+  <div class="section-title">Proteins</div>
+  <div class="grid" id="proteins"></div>
+
+  <div class="section-title">Dairy</div>
+  <div class="grid" id="dairy"></div>
+
+  <div class="section-title">Grains & Pantry</div>
+  <div class="grid" id="pantry"></div>
+
+  <div class="section-title">Legumes & Nuts</div>
+  <div class="grid" id="legumes"></div>
+
+  <div class="section-title">Fallback</div>
+  <div class="grid" id="fallback"></div>
+
+  <script>
+    const icons = {
+      fruits: [
+        { file: 'lemon', name: 'Lemon' },
+        { file: 'lime', name: 'Lime' },
+        { file: 'apple', name: 'Apple' },
+        { file: 'banana', name: 'Banana' },
+        { file: 'orange', name: 'Orange' },
+        { file: 'strawberry', name: 'Strawberry' },
+        { file: 'blueberry', name: 'Blueberry' },
+        { file: 'avocado', name: 'Avocado' },
+        { file: 'grapes', name: 'Grapes' },
+      ],
+      vegetables: [
+        { file: 'tomato', name: 'Tomato' },
+        { file: 'broccoli', name: 'Broccoli' },
+        { file: 'carrot', name: 'Carrot' },
+        { file: 'onion', name: 'Onion' },
+        { file: 'garlic', name: 'Garlic' },
+        { file: 'bell-pepper', name: 'Bell Pepper' },
+        { file: 'cucumber', name: 'Cucumber' },
+        { file: 'spinach', name: 'Spinach' },
+        { file: 'mushroom', name: 'Mushroom' },
+        { file: 'corn', name: 'Corn' },
+        { file: 'potato', name: 'Potato' },
+        { file: 'sweet-potato', name: 'Sweet Potato' },
+        { file: 'kale', name: 'Kale' },
+        { file: 'lettuce', name: 'Lettuce' },
+        { file: 'celery', name: 'Celery' },
+        { file: 'peas', name: 'Peas' },
+        { file: 'zucchini', name: 'Zucchini' },
+      ],
+      proteins: [
+        { file: 'chicken', name: 'Chicken' },
+        { file: 'salmon', name: 'Salmon' },
+        { file: 'tuna', name: 'Tuna' },
+        { file: 'beef', name: 'Beef' },
+        { file: 'turkey', name: 'Turkey' },
+        { file: 'shrimp', name: 'Shrimp' },
+        { file: 'tofu', name: 'Tofu' },
+        { file: 'egg', name: 'Egg' },
+      ],
+      dairy: [
+        { file: 'milk', name: 'Milk' },
+        { file: 'cheese', name: 'Cheese' },
+        { file: 'yogurt', name: 'Yogurt' },
+        { file: 'butter', name: 'Butter' },
+      ],
+      pantry: [
+        { file: 'bread', name: 'Bread' },
+        { file: 'rice', name: 'Rice' },
+        { file: 'pasta', name: 'Pasta' },
+        { file: 'oats', name: 'Oats' },
+        { file: 'olive-oil', name: 'Olive Oil' },
+      ],
+      legumes: [
+        { file: 'beans', name: 'Beans' },
+        { file: 'lentils', name: 'Lentils' },
+        { file: 'peas', name: 'Peas' },
+        { file: 'almonds', name: 'Almonds' },
+        { file: 'walnuts', name: 'Walnuts' },
+      ],
+      fallback: [
+        { file: 'generic', name: 'Generic (fallback)' },
+      ],
+    };
+
+    const BASE = '/icons/food/';
+    let total = 0;
+    for (const [section, items] of Object.entries(icons)) {
+      const grid = document.getElementById(section);
+      for (const item of items) {
+        total++;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <img src="${BASE}${item.file}.svg" alt="${item.name}" onerror="this.style.opacity='0.2'">
+          <span class="name">${item.name}</span>
+          <span class="file">${item.file}.svg</span>
+        `;
+        grid.appendChild(card);
+      }
+    }
+    document.getElementById('count-badge').textContent = `${total} icons`;
+  </script>
+</body>
+</html>

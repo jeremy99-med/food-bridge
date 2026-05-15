@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- bowl -->
+  <path d="M10 36 Q10 56 32 56 Q54 56 54 36 Z" fill="#E8D8C0"/>
+  <path d="M10 36 Q10 56 32 56 Q54 56 54 36 Z" fill="none" stroke="#C8A880" stroke-width="2"/>
+  <!-- bowl rim -->
+  <ellipse cx="32" cy="36" rx="22" ry="6" fill="#D8C8A8"/>
+  <!-- oatmeal surface -->
+  <ellipse cx="32" cy="32" rx="18" ry="8" fill="#D4B878"/>
+  <!-- oat flake texture -->
+  <ellipse cx="24" cy="30" rx="4" ry="2.5" fill="#C0A060" transform="rotate(-25 24 30)"/>
+  <ellipse cx="32" cy="27" rx="4" ry="2.5" fill="#C0A060"/>
+  <ellipse cx="40" cy="30" rx="4" ry="2.5" fill="#C0A060" transform="rotate(25 40 30)"/>
+  <ellipse cx="26" cy="34" rx="4" ry="2.5" fill="#B89050" transform="rotate(-15 26 34)"/>
+  <ellipse cx="36" cy="34" rx="4" ry="2.5" fill="#B89050" transform="rotate(15 36 34)"/>
+  <ellipse cx="20" cy="34" rx="3" ry="2" fill="#C0A060" transform="rotate(-30 20 34)"/>
+  <ellipse cx="44" cy="33" rx="3" ry="2" fill="#C0A060" transform="rotate(30 44 33)"/>
+</svg>

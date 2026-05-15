@@ -258,7 +258,7 @@ const MealPlan = () => {
                   text-xs font-bold transition-all duration-200
                   ${activeDay === i
                     ? "bg-[#0f4c2b] text-white shadow-[0_4px_14px_rgba(15,76,43,0.35)]"
-                    : "bg-white border border-[#daeade] text-[#0f4c2b] hover:border-[#0f4c2b] hover:shadow-sm"
+                    : "fb-day-btn bg-white border border-[#daeade] text-[#0f4c2b] hover:border-[#0f4c2b] hover:shadow-sm"
                   }`}
               >
                 <span className="text-[9px] font-normal opacity-60">DAY</span>
@@ -294,7 +294,7 @@ const MealPlan = () => {
                           <button
                             type="button"
                             onClick={() => setSwapping(isSwapping ? null : { dayIdx: activeDay, mealIdx: i })}
-                            className="text-[11px] font-semibold tracking-wide text-[#0f4c2b]
+                            className="fb-swap-btn text-[11px] font-semibold tracking-wide text-[#0f4c2b]
                                        underline underline-offset-2 hover:text-[#0a3420] transition-colors"
                             aria-expanded={isSwapping}
                             aria-label={`Swap ${meta.label}`}
@@ -303,7 +303,7 @@ const MealPlan = () => {
                           </button>
                         )}
                       </div>
-                      <p className="fb-display text-[1.3rem] leading-[1.25] text-[#111a14] lowercase">
+                      <p className="fb-meal-name fb-display text-[1.3rem] leading-[1.25] text-[#111a14] lowercase">
                         {displayName}
                       </p>
                       {wasSwapped && (
@@ -347,13 +347,13 @@ const MealPlan = () => {
                   <div key={c.name} className="cursor-default group">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-muted-foreground truncate pr-1">{c.name}</span>
-                      <span className={`font-bold tabular-nums shrink-0 ${coverageTextColor(c.pct)}`}>
+                      <span className={`fb-coverage-pct font-bold tabular-nums shrink-0 ${coverageTextColor(c.pct)}`}>
                         <span className="group-hover:hidden">{Math.round(c.pct)}%</span>
                         <span className="hidden group-hover:inline">{nutrientAmount(c.key, c.pct)}</span>
                       </span>
                     </div>
-                    <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${coverageColor(c.pct)}`} style={{ width: `${pct}%` }} />
+                    <div className="fb-coverage-track h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                      <div className={`fb-coverage-fill h-full rounded-full ${coverageColor(c.pct)}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 );

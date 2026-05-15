@@ -36,8 +36,8 @@ export interface FoodItem {
   top_nutrients?: string[];
 }
 
-// 1-5 = main flow; 6 = Login; 7 = Signup; 8 = SavedLists
-export type Screen = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+// 1-5 = main flow; 6 = Login; 7 = Signup; 8 = SavedLists; 9 = Profile
+export type Screen = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export interface AuthUser {
   user_id: string;

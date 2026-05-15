@@ -117,6 +117,72 @@ html[data-dark="true"] .fb-btn:not(:disabled):hover {
   border-color: #e8f5ee;
 }
 
+/* ── Loading screen: food float icons ── */
+/* Light mode: green silhouettes */
+.food-float-icon {
+  filter: brightness(0) invert(1) sepia(1) hue-rotate(108deg) saturate(8) brightness(0.38);
+}
+
+/* ── Dark mode: loading screen ── */
+html[data-dark="true"] .fb-loading-ring {
+  border-color: rgba(247, 250, 248, 0.18) !important;
+}
+html[data-dark="true"] .fb-float-shape {
+  opacity: 0.55 !important;
+}
+/* Dark mode: override to white silhouettes */
+html[data-dark="true"] .food-float-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* ── Dark mode: food icons in grocery list ── */
+/* food-icon-img always shows natural colors — no filter override */
+html[data-dark="true"] .food-icon-bg {
+  background: var(--color-surface-2) !important;
+}
+
+/* ── Dark mode: meal plan ── */
+html[data-dark="true"] .fb-meal-name {
+  color: var(--color-card-foreground) !important;
+}
+html[data-dark="true"] .fb-swap-btn {
+  color: var(--color-foreground) !important;
+}
+html[data-dark="true"] .fb-day-btn {
+  background: white !important;
+  color: #0f4c2b !important;
+  border-color: #daeade !important;
+}
+html[data-dark="true"] .fb-coverage-pct {
+  color: var(--color-foreground) !important;
+}
+html[data-dark="true"] .fb-coverage-track {
+  background: var(--color-surface-2) !important;
+}
+html[data-dark="true"] .fb-coverage-fill {
+  background: var(--color-foreground) !important;
+}
+
+/* ── Dark mode: grocery list ── */
+html[data-dark="true"] .fb-grocery-cat-title {
+  color: var(--color-foreground) !important;
+}
+html[data-dark="true"] .fb-grocery-item-name {
+  color: var(--color-card-foreground) !important;
+}
+html[data-dark="true"] .fb-grocery-price {
+  color: var(--color-foreground) !important;
+}
+html[data-dark="true"] .fb-grocery-total {
+  color: var(--color-foreground) !important;
+}
+html[data-dark="true"] .fb-budget-label {
+  color: var(--color-muted-foreground) !important;
+}
+html[data-dark="true"] .fb-budget-track {
+  background: var(--color-surface-2) !important;
+}
+
 /* Remove native number input spinners */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button {

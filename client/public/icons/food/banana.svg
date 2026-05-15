@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Filled crescent body -->
+  <path d="M12 54 C6 36,22 6,52 6 C58 6,60 12,56 16 C46 22,20 46,16 58 C14 60,10 58,12 54 Z" fill="#FFD100"/>
+  <!-- Outer ridge shading -->
+  <path d="M12 54 C6 36,22 6,52 6 C55 7,55 10,51 12 C24 16,10 36,14 54 Z" fill="#E0A800"/>
+  <!-- Belly highlight stripe -->
+  <path d="M18 50 C16 36,26 14,50 11" stroke="#FFF3A0" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.5"/>
+  <!-- Dark tips -->
+  <circle cx="12" cy="54" r="5" fill="#5C3A00"/>
+  <circle cx="54" cy="9" r="5" fill="#5C3A00"/>
+</svg>

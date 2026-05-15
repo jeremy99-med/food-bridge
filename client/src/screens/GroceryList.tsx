@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useApp } from "@/store/app";
 import { resetSession, saveGroceryList } from "@/lib/api";
 import { categoryIcon } from "@/lib/categories";
+import { getFoodIconSrc } from "@/lib/foodIcons";
 import Spinner from "@/components/Spinner";
 import ErrorAlert from "@/components/ErrorAlert";
 
@@ -315,13 +316,13 @@ const GroceryList = () => {
         <p className="fb-section-title">Step 5 of 5</p>
         <div className="mt-1 flex items-start justify-between gap-4">
           <h1 className="text-[2.6rem] fb-display leading-none">Your Grocery List</h1>
-          <p className="text-2xl font-extrabold tabular-nums text-[#0f4c2b]">${total.toFixed(2)}</p>
+          <p className="fb-grocery-total text-2xl font-extrabold tabular-nums text-[#0f4c2b]">${total.toFixed(2)}</p>
         </div>
 
         {budget > 0 && (
           <div className="mt-4 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-[#4d7560]">Budget ${budget.toFixed(0)}</span>
+              <span className="fb-budget-label text-[#4d7560]">Budget ${budget.toFixed(0)}</span>
               <span className="font-bold">
                 {within
                   ? "Within budget ✓"
@@ -334,7 +335,7 @@ const GroceryList = () => {
                   : "Over budget ✗"}
               </span>
             </div>
-            <div className="h-2 bg-[#daeade] rounded-full overflow-hidden">
+            <div className="fb-budget-track h-2 bg-[#daeade] rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${overBudget ? "bg-[#c0392b]" : slightlyOver ? "bg-[#c9820a]" : "bg-[#0f4c2b]"}`}
                 style={{ width: `${pct}%`, transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)" }}
@@ -360,17 +361,17 @@ const GroceryList = () => {
         {spiceGroups.length > 0 && spiceGroups.map(([, items]) => (
           <section key="Spices & Pantry" className="space-y-2.5">
             <div className="flex items-baseline justify-between border-b border-[#daeade] pb-2">
-              <h2 className="font-extrabold text-sm tracking-[-0.01em] text-[#111a14]">🌿 Spices & Pantry</h2>
+              <h2 className="fb-grocery-cat-title font-extrabold text-sm tracking-[-0.01em] text-[#111a14]">🌿 Spices & Pantry</h2>
               <span className="text-[11px] text-[#4d7560] tabular-nums italic">not included in budget</span>
             </div>
             <p className="text-[11px] text-[#4d7560]">Check your pantry — you may already have these.</p>
             <ul className="space-y-2">
               {items.map((it, i) => (
                 <li key={i} className="fb-grocery-card">
-                  <div className="w-11 h-11 shrink-0 rounded-lg bg-[#edf5f0] flex items-center justify-center text-lg">
+                  <div className="food-icon-bg w-11 h-11 shrink-0 rounded-lg bg-[#edf5f0] flex items-center justify-center text-lg">
                     🌿
                   </div>
-                  <p className="font-semibold text-sm leading-snug text-[#111a14] flex-1">{it.name}</p>
+                  <p className="fb-grocery-item-name font-semibold text-sm leading-snug text-[#111a14] flex-1">{it.name}</p>
                 </li>
               ))}
             </ul>
@@ -380,22 +381,19 @@ const GroceryList = () => {
         {mainGroups.map(([cat, items]) => (
           <section key={cat} className="space-y-2.5">
             <div className="flex items-baseline justify-between border-b border-[#daeade] pb-2">
-              <h2 className="font-extrabold text-sm tracking-[-0.01em] text-[#111a14]">{categoryIcon(cat)} {cat}</h2>
+              <h2 className="fb-grocery-cat-title font-extrabold text-sm tracking-[-0.01em] text-[#111a14]">{categoryIcon(cat)} {cat}</h2>
               <span className="text-[11px] text-[#4d7560] tabular-nums">{items.length} item{items.length === 1 ? "" : "s"}</span>
             </div>
             <ul className="space-y-2">
               {items.map((it, i) => (
                 <li key={i} className="fb-grocery-card">
-                  <div className="w-11 h-11 shrink-0 rounded-lg overflow-hidden bg-[#edf5f0]
-                                  flex items-center justify-center text-lg
+                  <div className="food-icon-bg w-11 h-11 shrink-0 rounded-lg overflow-hidden bg-[#edf5f0]
+                                  flex items-center justify-center
                                   shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)]">
-                    {it.image_url
-                      ? <img src={it.image_url} alt={it.name} className="w-full h-full object-cover" />
-                      : <span>{categoryIcon(it.category ?? "Other")}</span>
-                    }
+                    <img src={getFoodIconSrc(it.name)} alt={it.name} className="food-icon-img w-8 h-8 object-contain" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm leading-snug text-[#111a14]">{it.name}</p>
+                    <p className="fb-grocery-item-name font-semibold text-sm leading-snug text-[#111a14]">{it.name}</p>
                     {it.brand && <p className="text-[11px] text-[#4d7560] mt-0.5">{it.brand}</p>}
                     <div className="mt-1 flex items-center gap-2 flex-wrap">
                       {it.quantity != null && typeof it.price === "number" && (
@@ -414,7 +412,7 @@ const GroceryList = () => {
                     </div>
                   </div>
                   {typeof it.price === "number" && (
-                    <span className="text-sm font-bold tabular-nums shrink-0 text-[#0f4c2b] pt-0.5">
+                    <span className="fb-grocery-price text-sm font-bold tabular-nums shrink-0 text-[#0f4c2b] pt-0.5">
                       ${((it.quantity ?? 1) * it.price).toFixed(2)}
                     </span>
                   )}

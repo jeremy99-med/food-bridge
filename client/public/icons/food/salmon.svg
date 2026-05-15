@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- body -->
+  <path d="M12 32 C14 24 22 18 34 18 C44 18 52 24 54 30 L54 34 C52 40 44 46 34 46 C22 46 14 40 12 32 Z" fill="#E07858"/>
+  <!-- tail fin -->
+  <path d="M54 32 C58 26 60 20 56 18 C54 24 54 28 54 32 Z" fill="#D06848"/>
+  <path d="M54 32 C58 38 60 44 56 46 C54 40 54 36 54 32 Z" fill="#D06848"/>
+  <!-- dorsal fin -->
+  <path d="M30 18 C32 12 38 10 40 14 C38 16 34 18 30 18 Z" fill="#C85838"/>
+  <!-- eye -->
+  <circle cx="18" cy="30" r="3.5" fill="white"/>
+  <circle cx="18" cy="30" r="2" fill="#1A1A1A"/>
+  <!-- lateral line -->
+  <path d="M22 28 Q38 26 52 30" stroke="#C85838" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <!-- belly -->
+  <path d="M14 34 C20 40 30 44 40 42" stroke="#F0A080" stroke-width="2" fill="none" opacity="0.5"/>
+</svg>

@@ -10,7 +10,7 @@ export function useAuthNavigation() {
   };
 
   const afterAuth = () => {
-    const dest = returnScreen ?? (profileId ? 5 : 1);
+    const dest = returnScreen ?? (profileId ? 2 : 1);
     setReturnScreen(null);
     setScreen(dest as Screen);
   };

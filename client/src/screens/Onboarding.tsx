@@ -1,73 +1,26 @@
 import { useState } from "react";
-import { useApp, type Sex, type Activity, type Smoking } from "@/store/app";
+import { useApp, type Sex } from "@/store/app";
 import { createProfile } from "@/lib/api";
 import ProgressBar from "@/components/ProgressBar";
 import PillGroup from "@/components/PillGroup";
 import Stepper from "@/components/Stepper";
 import Spinner from "@/components/Spinner";
 import ErrorAlert from "@/components/ErrorAlert";
-
-const ACTIVITY: Activity[] = ["Sedentary", "Lightly Active", "Moderately Active", "Very Active", "Extra Active"];
-
-const GOALS = ["Weight Loss", "Muscle Gain", "Weight Gain", "Maintenance"];
-// Weight Loss and Weight Gain are mutually exclusive
-const EXCLUSIVE_PAIRS = [["Weight Loss", "Weight Gain"]];
-
-const CONDITIONS = [
-  "None",
-  "Hypertension", "Type 2 Diabetes", "Type 1 Diabetes", "Heart Disease",
-  "High Cholesterol", "Obesity", "Kidney Disease", "Celiac Disease",
-  "Thyroid Disorder", "Anemia", "Osteoporosis", "GERD / Acid Reflux",
-  "Irritable Bowel Syndrome", "Crohn's Disease", "Polycystic Ovary Syndrome",
-  "Gestational Diabetes", "Prediabetes", "Liver Disease",
-];
-
-const SMOKING: Smoking[] = ["Smoker", "Non-Smoker", "Former Smoker"];
-
-// Medications by category
-const MEDICATION_CATEGORIES: Record<string, string[]> = {
-  "💊 Diabetes": ["Metformin", "Insulin", "Ozempic (Semaglutide)", "Jardiance", "Januvia"],
-  "❤️ Heart / Blood Pressure": ["Lisinopril", "Amlodipine", "Metoprolol", "Atorvastatin", "Losartan", "Hydrochlorothiazide"],
-  "🧠 Mental Health": ["Sertraline", "Escitalopram", "Fluoxetine", "Bupropion", "Quetiapine"],
-  "🩺 Thyroid": ["Levothyroxine", "Methimazole"],
-  "🦴 Bone Health": ["Calcium + Vitamin D", "Alendronate"],
-  "🌿 Supplements": ["Iron Supplement", "Folate / Folic Acid", "Vitamin B12", "Vitamin D3", "Omega-3 / Fish Oil"],
-  "💉 Blood Thinners": ["Warfarin", "Apixaban (Eliquis)", "Rivaroxaban (Xarelto)"],
-  "🫁 Respiratory": ["Albuterol", "Fluticasone", "Montelukast"],
-};
+import {
+  ACTIVITY, GOALS, CONDITIONS, SMOKING, MEDICATION_CATEGORIES,
+  isValidAge, isValidHeight, isValidWeight,
+} from "@/lib/profileUtils";
+import Field from "@/components/ProfileField";
+import { useProfileForm } from "@/hooks/useProfileForm";
 
 const STEPS = 6;
-
-// Unit conversion helpers (imperial ↔ metric)
-function ftInToCm(ft: string, inches: string): string {
-  return ((parseFloat(ft) * 12 + parseFloat(inches)) * 2.54).toFixed(1);
-}
-function lbsToKg(lbs: string): string {
-  return (parseFloat(lbs) * 0.453592).toFixed(1);
-}
-function cmToFtIn(cm: string): { ft: string; inches: string } {
-  const totalIn = parseFloat(cm) / 2.54;
-  return { ft: String(Math.floor(totalIn / 12)), inches: String(Math.round(totalIn % 12)) };
-}
-function kgToLbs(kg: string): string {
-  return (parseFloat(kg) / 0.453592).toFixed(1);
-}
-
-// Validation helpers
-const isValidFloat = (v: string) => /^\d+(\.\d+)?$/.test(v.trim()) && parseFloat(v) > 0;
-const isValidAge = (v: string) => /^\d+$/.test(v.trim()) && parseInt(v) >= 1 && parseInt(v) <= 120;
-const isValidHeight = (v: string) => isValidFloat(v) && parseFloat(v) >= 50 && parseFloat(v) <= 300;
-const isValidWeight = (v: string) => isValidFloat(v) && parseFloat(v) >= 10 && parseFloat(v) <= 500;
 
 const Onboarding = () => {
   const { profile, setProfile, setScreen, setProfileId, onboardingStep: step, setOnboardingStep: setStep } = useApp();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [unitSystem, setUnitSystem] = useState<'imperial' | 'metric'>('imperial');
-  const [heightFt, setHeightFt] = useState(() => profile.height ? cmToFtIn(profile.height).ft : '');
-  const [heightIn, setHeightIn] = useState(() => profile.height ? cmToFtIn(profile.height).inches : '');
-  const [weightLbs, setWeightLbs] = useState(() => profile.weight ? kgToLbs(profile.weight) : '');
+  const { unitSystem, heightFt, setHeightFt, heightIn, setHeightIn, weightLbs, setWeightLbs, handleUnitToggle, handleGoalChange, handleConditionChange, toggleMedication } = useProfileForm();
 
   const next = () => {
     const errs = validateStep(step);
@@ -89,45 +42,6 @@ const Onboarding = () => {
       if (!profile.sex) errs.sex = "Please select a sex";
     }
     return errs;
-  };
-
-  const handleUnitToggle = (system: 'imperial' | 'metric') => {
-    if (system === 'imperial') {
-      if (profile.height) {
-        const { ft, inches } = cmToFtIn(profile.height);
-        setHeightFt(ft);
-        setHeightIn(inches);
-      }
-      if (profile.weight) setWeightLbs(kgToLbs(profile.weight));
-    }
-    setUnitSystem(system);
-  };
-
-  const handleGoalChange = (selected: string[]) => {
-    let next = selected;
-    for (const [a, b] of EXCLUSIVE_PAIRS) {
-      const hadA = profile.goals.includes(a);
-      const hadB = profile.goals.includes(b);
-      const hasA = selected.includes(a);
-      const hasB = selected.includes(b);
-      if (!hadA && hasA && hasB) next = next.filter((g) => g !== b);
-      if (!hadB && hasB && hasA) next = next.filter((g) => g !== a);
-    }
-    setProfile({ goals: next });
-  };
-
-  const handleConditionChange = (selected: string[]) => {
-    // If "None" was just added, clear everything else
-    const justAddedNone = selected.includes("None") && !profile.conditions.includes("None");
-    if (justAddedNone) { setProfile({ conditions: ["None"] }); return; }
-    // If something else was added while "None" was selected, remove "None"
-    setProfile({ conditions: selected.filter((c) => c !== "None") });
-  };
-
-  const toggleMedication = (med: string) => {
-    const current = profile.medications;
-    const next = current.includes(med) ? current.filter((m) => m !== med) : [...current, med];
-    setProfile({ medications: next });
   };
 
   const submit = async () => {
@@ -425,13 +339,5 @@ const Onboarding = () => {
     </div>
   );
 };
-
-const Field = ({ label, error, className, children }: { label: string; error?: string; className?: string; children: React.ReactNode }) => (
-  <label className={`block space-y-2 ${className ?? ''}`}>
-    <span className="fb-section-title block">{label}</span>
-    {children}
-    {error && <p className="text-xs text-red-500 mt-1">⚠ {error}</p>}
-  </label>
-);
 
 export default Onboarding;
